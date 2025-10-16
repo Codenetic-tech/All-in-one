@@ -194,7 +194,7 @@ export function AppSidebar() {
                   </div>
                   {user && (
                     <p className="text-xs text-slate-500 mt-1 font-medium">
-                     <span className="text-slate-700">{user.email}</span>
+                     <span className="text-slate-700">{user.email.split('@')[0]}</span>
                     </p>
                   )}
                 </div>

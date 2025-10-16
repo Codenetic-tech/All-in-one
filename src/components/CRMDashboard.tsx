@@ -482,12 +482,6 @@ const CRMDashboard: React.FC = () => {
                 )}
               </div>
             )}
-            <p className="text-gray-600 mt-1">
-              Auto-refresh: {autoRefresh ? `ON (every ${refreshInterval}s)` : 'OFF'}
-            </p>
-            <p className="text-sm text-gray-500">
-              User: {email} (ID: {employeeId})
-            </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -562,6 +556,20 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.newLeads.toLocaleString()}</p>
           </div>
 
+          <div className="bg-white rounded-xl shadow-lg shadow-orange-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-orange-500 hover:to-orange-600 hover:text-white hover:shadow-orange-500/40 group">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-orange-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
+                <IndianRupee size={24} className="text-white" />
+              </div>
+              <div className="flex items-center gap-1 text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
+                <ArrowUpRight size={14} />
+                22.1%
+              </div>
+            </div>
+            <h3 className="text-sm font-medium opacity-90 mb-1">Contacted Leads</h3>
+            <p className="text-2xl font-bold">₹{summaryData.contactedLeads.toLocaleString()}</p>
+          </div>
+
           <div className="bg-white rounded-xl shadow-lg shadow-purple-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500 hover:to-purple-600 hover:text-white hover:shadow-purple-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-purple-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -576,19 +584,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.qualifiedLeads.toLocaleString()}</p>
           </div>
 
-          <div className="bg-white rounded-xl shadow-lg shadow-orange-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-orange-500 hover:to-orange-600 hover:text-white hover:shadow-orange-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-orange-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <IndianRupee size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                22.1%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">Total Value</h3>
-            <p className="text-2xl font-bold">₹{summaryData.totalValue.toLocaleString()}</p>
-          </div>
 
           <div className="bg-white rounded-xl shadow-lg shadow-red-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-red-500 hover:to-red-600 hover:text-white hover:shadow-red-500/40 group">
             <div className="flex items-center justify-between mb-3">
