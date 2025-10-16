@@ -123,7 +123,7 @@ const LoginForm = () => {
             </CardTitle>
             
             <CardDescription className="text-gray-600 text-lg pb-8 font-medium">
-              Sign in to your <span className="text-blue-600 font-semibold">GoPocket HRMS</span> account
+              Sign in to your <span className="text-blue-600 font-semibold">GoPocket All in One APP</span>
             </CardDescription>
           </CardHeader>
           

@@ -1,5 +1,4 @@
-// crm-dashboard.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, Mail, Phone, Calendar, Filter, Search, Download, 
@@ -7,10 +6,12 @@ import {
   Building2, User, MailIcon, PhoneIcon, MessageCircle,
   Activity, CheckSquare, FileText, ArrowUpRight, ArrowDownRight,
   IndianRupee, RefreshCw, TrendingUp, Check,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Wifi, WifiOff
 } from 'lucide-react';
-import { fetchLeads, updateLeadStatus, refreshLeads, getCacheInfo, type Lead } from '@/utils/crm';
+
+// Import the actual useAuth hook and fetchLeads function
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchLeads, type Lead } from '@/utils/crm';
 
 interface SummaryData {
   totalLeads: number;
@@ -33,62 +34,221 @@ const statusOptions = [
 
 const CRMDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth(); // Get user from auth context
+  const { user } = useAuth(); // Get actual user from auth context
+  
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Lead; direction: 'asc' | 'desc' } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Lead; direction: 'asc' | 'desc' }>({ 
+    key: 'createdAt', 
+    direction: 'desc' 
+  });
+  
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(900); // 15 minutes in seconds
+  const [error, setError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'syncing'>('connected');
+  const [newRecordsCount, setNewRecordsCount] = useState(0);
+  const [modifiedRecordsCount, setModifiedRecordsCount] = useState(0);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-  const [cacheInfo, setCacheInfo] = useState(getCacheInfo());
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
 
-  // Get user credentials from auth context
+  // Refs
+  const lastFetchedData = useRef<Lead[]>([]);
+  const autoRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
 
-  // Fetch leads on component mount
-  useEffect(() => {
-    if (!employeeId || !email) return;
-
-    const loadLeads = async () => {
-      setLoading(true);
-      try {
-        const leadsData = await fetchLeads(employeeId, email);
-        setLeads(leadsData);
-        setFilteredLeads(leadsData);
-        setCacheInfo(getCacheInfo());
-      } catch (error) {
-        console.error('Error loading leads:', error);
-        // You might want to show an error message to the user
-      } finally {
-        setLoading(false);
+  // Fetch all leads using the actual fetchLeads function
+  const fetchAllLeads = async (isAutoRefresh = false) => {
+    try {
+      if (isAutoRefresh) {
+        setIsAutoRefreshing(true);
+        setConnectionStatus('syncing');
+      } else {
+        setIsInitialLoading(true);
       }
-    };
+      
+      setError(null);
+      
+      // Use the actual fetchLeads function that sends employeeId and email to webhook
+      const apiLeads = await fetchLeads(employeeId, email);
+      
+      if (isAutoRefresh && lastFetchedData.current.length > 0) {
+        // Incremental update for auto-refresh
+        const currentDataMap = new Map(lastFetchedData.current.map(lead => [lead.id, getLeadContentHash(lead)]));
+        const newDataMap = new Map(apiLeads.map(lead => [lead.id, getLeadContentHash(lead)]));
+        
+        let newCount = 0;
+        let modifiedCount = 0;
+        
+        // Start with clean data (no flags)
+        const cleanCurrentData = lastFetchedData.current.map(lead => ({
+          ...lead,
+          _isNew: false,
+          _isModified: false
+        }));
+        
+        // Create a map of current data by ID
+        const currentDataById = new Map(cleanCurrentData.map(lead => [lead.id, lead]));
+        
+        // Process new data
+        const updatedLeads: Lead[] = [];
+        
+        apiLeads.forEach(newLead => {
+          const leadId = newLead.id;
+          const newContentHash = newDataMap.get(leadId);
+          const oldContentHash = currentDataMap.get(leadId);
+          const existingLead = currentDataById.get(leadId);
+          
+          if (!existingLead) {
+            // New lead
+            newLead._isNew = true;
+            updatedLeads.push(newLead);
+            newCount++;
+            console.log('New lead detected:', newLead);
+          } else if (oldContentHash !== newContentHash) {
+            // Modified lead
+            newLead._isModified = true;
+            updatedLeads.push(newLead);
+            modifiedCount++;
+            console.log('Modified lead detected:', { old: existingLead, new: newLead });
+          } else {
+            // Unchanged lead
+            updatedLeads.push(existingLead);
+          }
+        });
+        
+        // Sort by creation date (newest first)
+        updatedLeads.sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          return timeB - timeA;
+        });
+        
+        setLeads(updatedLeads);
+        lastFetchedData.current = updatedLeads.map(lead => ({
+          ...lead,
+          _isNew: false,
+          _isModified: false
+        }));
+        
+        setNewRecordsCount(newCount);
+        setModifiedRecordsCount(modifiedCount);
+        
+        console.log(`Auto-refresh completed: ${newCount} new, ${modifiedCount} modified, ${updatedLeads.length} total`);
+        
+        // Clear new/modified flags after 5 seconds
+        setTimeout(() => {
+          setLeads(prev => prev.map(lead => ({
+            ...lead,
+            _isNew: false,
+            _isModified: false
+          })));
+        }, 5000);
+        
+        setConnectionStatus('connected');
+      } else {
+        // Full refresh for initial load
+        const sortedLeads = apiLeads.sort((a, b) => {
+          const timeA = new Date(a.createdAt).getTime();
+          const timeB = new Date(b.createdAt).getTime();
+          return timeB - timeA;
+        });
+        
+        setLeads(sortedLeads);
+        lastFetchedData.current = sortedLeads;
+        setNewRecordsCount(0);
+        setModifiedRecordsCount(0);
+        setConnectionStatus('connected');
+        console.log('Full refresh completed:', sortedLeads.length, 'leads');
+      }
+      
+      setLastUpdated(new Date());
+    } catch (error: any) {
+      console.error('Error fetching leads:', error);
+      setError(`Failed to fetch leads: ${error.message}`);
+      setConnectionStatus('disconnected');
+    } finally {
+      setIsInitialLoading(false);
+      setIsAutoRefreshing(false);
+    }
+  };
 
-    loadLeads();
+  // Helper function to get lead content hash for comparison
+  const getLeadContentHash = (lead: Lead): string => {
+    const keys: (keyof Lead)[] = ['name', 'email', 'phone', 'company', 'status', 'value', 'assignedTo', 'lastActivity'];
+    return keys.map(key => String(lead[key] || '')).join('|');
+  };
+
+  // Load data on mount
+  useEffect(() => {
+    if (employeeId && email) {
+      fetchAllLeads(false);
+    }
   }, [employeeId, email]);
 
-  // Calculate summary data
-  const summaryData: SummaryData = {
-    totalLeads: leads.length,
-    newLeads: leads.filter(lead => lead.status === 'new').length,
-    contactedLeads: leads.filter(lead => lead.status === 'contacted').length,
-    qualifiedLeads: leads.filter(lead => lead.status === 'qualified').length,
-    totalValue: leads.reduce((sum, lead) => sum + lead.value, 0),
-    conversionRate: Math.round((leads.filter(lead => ['qualified', 'proposal', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
-  };
+  // Auto-refresh effect
+  useEffect(() => {
+    if (autoRefreshTimeoutRef.current) {
+      clearTimeout(autoRefreshTimeoutRef.current);
+    }
+    
+    if (autoRefresh && !isInitialLoading && employeeId && email) {
+      const scheduleNextRefresh = () => {
+        autoRefreshTimeoutRef.current = setTimeout(() => {
+          fetchAllLeads(true).finally(() => {
+            scheduleNextRefresh();
+          });
+        }, refreshInterval * 1000);
+      };
+      
+      scheduleNextRefresh();
+    }
+    
+    return () => {
+      if (autoRefreshTimeoutRef.current) {
+        clearTimeout(autoRefreshTimeoutRef.current);
+      }
+    };
+  }, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
+
+  // Calculate summary data - start with 0 for initial state
+  const summaryData: SummaryData = useMemo(() => {
+    if (isInitialLoading && leads.length === 0) {
+      return {
+        totalLeads: 0,
+        newLeads: 0,
+        contactedLeads: 0,
+        qualifiedLeads: 0,
+        totalValue: 0,
+        conversionRate: 0
+      };
+    }
+
+    return {
+      totalLeads: leads.length,
+      newLeads: leads.filter(lead => lead.status === 'new').length,
+      contactedLeads: leads.filter(lead => lead.status === 'contacted').length,
+      qualifiedLeads: leads.filter(lead => lead.status === 'qualified').length,
+      totalValue: leads.reduce((sum, lead) => sum + lead.value, 0),
+      conversionRate: Math.round((leads.filter(lead => ['qualified', 'proposal', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
+    };
+  }, [leads, isInitialLoading]);
 
   // Filter and sort leads
   useEffect(() => {
     let result = leads;
 
-    // Apply search filter
     if (searchTerm) {
       result = result.filter(lead =>
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -100,16 +260,27 @@ const CRMDashboard: React.FC = () => {
       );
     }
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       result = result.filter(lead => lead.status === statusFilter);
     }
 
-    // Apply sorting
     if (sortConfig) {
       result = [...result].sort((a, b) => {
         const aValue = a[sortConfig.key];
         const bValue = b[sortConfig.key];
+
+        if (sortConfig.key === 'createdAt') {
+          const aDate = new Date(aValue as string).getTime();
+          const bDate = new Date(bValue as string).getTime();
+          
+          if (aDate < bDate) {
+            return sortConfig.direction === 'asc' ? -1 : 1;
+          }
+          if (aDate > bDate) {
+            return sortConfig.direction === 'asc' ? 1 : -1;
+          }
+          return 0;
+        }
 
         if (aValue < bValue) {
           return sortConfig.direction === 'asc' ? -1 : 1;
@@ -122,10 +293,10 @@ const CRMDashboard: React.FC = () => {
     }
 
     setFilteredLeads(result);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   }, [leads, searchTerm, statusFilter, sortConfig]);
 
-  // Pagination calculations
+  // Pagination
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -133,9 +304,15 @@ const CRMDashboard: React.FC = () => {
 
   const handleSort = (key: keyof Lead) => {
     let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+    
+    if (sortConfig && sortConfig.key === key) {
+      direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    }
+    
+    if (key === 'createdAt' && !sortConfig) {
       direction = 'desc';
     }
+    
     setSortConfig({ key, direction });
   };
 
@@ -156,39 +333,9 @@ const CRMDashboard: React.FC = () => {
     navigate(`/crm/leads/${leadId}`);
   };
 
-  const handleStatusChange = (leadId: string, newStatus: Lead['status']) => {
-    // Update local state
-    setLeads(prevLeads => 
-      prevLeads.map(lead => 
-        lead.id === leadId 
-          ? { ...lead, status: newStatus, lastActivity: 'Just now' }
-          : lead
-      )
-    );
-    
-    // Update cache
-    updateLeadStatus(leadId, newStatus);
-    setOpenDropdown(null);
-  };
-
   const handleRefresh = async () => {
     if (!employeeId || !email) return;
-    
-    setRefreshing(true);
-    try {
-      // Clear cache first
-      localStorage.removeItem('crm_leads_cache');
-      
-      const refreshedLeads = await refreshLeads(employeeId, email);
-      setLeads(refreshedLeads);
-      setFilteredLeads(refreshedLeads);
-      setCacheInfo(getCacheInfo());
-      setCurrentPage(1); // Reset to first page after refresh
-    } catch (error) {
-      console.error('Error refreshing leads:', error);
-    } finally {
-      setRefreshing(false);
-    }
+    await fetchAllLeads(false);
   };
 
   const toggleDropdown = (leadId: string, e: React.MouseEvent) => {
@@ -196,17 +343,23 @@ const CRMDashboard: React.FC = () => {
     setOpenDropdown(openDropdown === leadId ? null : leadId);
   };
 
-  // Pagination handlers
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
 
-  const goToFirstPage = () => goToPage(1);
-  const goToLastPage = () => goToPage(totalPages);
-  const goToNextPage = () => goToPage(currentPage + 1);
-  const goToPrevPage = () => goToPage(currentPage - 1);
+  const getConnectionStatusIcon = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return <Wifi className="h-4 w-4 text-green-500" />;
+      case 'syncing':
+        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'disconnected':
+        return <WifiOff className="h-4 w-4 text-red-500" />;
+      default:
+        return <Wifi className="h-4 w-4 text-gray-500" />;
+    }
+  };
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = () => {
       setOpenDropdown(null);
@@ -218,27 +371,13 @@ const CRMDashboard: React.FC = () => {
     };
   }, []);
 
-  const LoadingOverlay = () => (
-    <div className="fixed inset-0 bg-white bg-opacity-80 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-        <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-500 mb-4" />
-        <p className="text-gray-600">Loading lead data...</p>
-      </div>
-    </div>
-  );
-
-  // Modern Pagination Component
   const Pagination = () => (
     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-gray-200 bg-gray-50">
       <div className="flex items-center gap-4 text-sm text-gray-600">
         <span>Showing {startIndex + 1}-{Math.min(endIndex, filteredLeads.length)} of {filteredLeads.length} leads</span>
-        {cacheInfo.hasCache && !cacheInfo.isExpired && (
-          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Cached</span>
-        )}
       </div>
       
       <div className="flex items-center gap-2">
-        {/* Items per page selector */}
         <select
           value={itemsPerPage}
           onChange={(e) => {
@@ -253,10 +392,9 @@ const CRMDashboard: React.FC = () => {
           <option value={50}>50 per page</option>
         </select>
 
-        {/* Pagination buttons */}
         <div className="flex items-center gap-1">
           <button
-            onClick={goToFirstPage}
+            onClick={() => goToPage(1)}
             disabled={currentPage === 1}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -264,14 +402,13 @@ const CRMDashboard: React.FC = () => {
           </button>
           
           <button
-            onClick={goToPrevPage}
+            onClick={() => goToPage(currentPage - 1)}
             disabled={currentPage === 1}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <ChevronLeft size={16} />
           </button>
 
-          {/* Page numbers */}
           <div className="flex items-center gap-1 mx-2">
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
@@ -299,22 +436,10 @@ const CRMDashboard: React.FC = () => {
                 </button>
               );
             })}
-            
-            {totalPages > 5 && currentPage < totalPages - 2 && (
-              <>
-                <span className="text-gray-400">...</span>
-                <button
-                  onClick={goToLastPage}
-                  className="w-8 h-8 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm font-medium transition-colors"
-                >
-                  {totalPages}
-                </button>
-              </>
-            )}
           </div>
 
           <button
-            onClick={goToNextPage}
+            onClick={() => goToPage(currentPage + 1)}
             disabled={currentPage === totalPages}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -322,7 +447,7 @@ const CRMDashboard: React.FC = () => {
           </button>
           
           <button
-            onClick={goToLastPage}
+            onClick={() => goToPage(totalPages)}
             disabled={currentPage === totalPages}
             className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -333,39 +458,64 @@ const CRMDashboard: React.FC = () => {
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        <LoadingOverlay />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {refreshing && <LoadingOverlay />}
-      
       <div className="w-full p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold text-gray-900">CRM Dashboard</h1>
-              {cacheInfo.hasCache && (
-                <span className={`text-xs px-2 py-1 rounded-full ${cacheInfo.isExpired ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                  {cacheInfo.isExpired ? 'Cache Expired' : 'Using Cache'}
-                </span>
-              )}
+              {getConnectionStatusIcon()}
             </div>
-            <p className="text-gray-600">Manage your leads and customer relationships</p>
+            {lastUpdated && (
+              <div className="flex items-center gap-4 mt-1 text-sm">
+                <span className="text-gray-500">
+                  Last updated: {lastUpdated.toLocaleTimeString()}
+                </span>
+                {(newRecordsCount > 0 || modifiedRecordsCount > 0) && (
+                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                    {newRecordsCount > 0 && `${newRecordsCount} new`}
+                    {newRecordsCount > 0 && modifiedRecordsCount > 0 && ', '}
+                    {modifiedRecordsCount > 0 && `${modifiedRecordsCount} updated`}
+                  </span>
+                )}
+              </div>
+            )}
+            <p className="text-gray-600 mt-1">
+              Auto-refresh: {autoRefresh ? `ON (every ${refreshInterval}s)` : 'OFF'}
+            </p>
+            <p className="text-sm text-gray-500">
+              User: {email} (ID: {employeeId})
+            </p>
           </div>
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="autoRefresh"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+                className="h-4 w-4 text-blue-600 rounded"
+              />
+              <label htmlFor="autoRefresh" className="text-sm text-gray-700">Auto Refresh</label>
+            </div>
+            <select
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              className="text-sm border border-gray-300 rounded-md px-3 py-2"
+            >
+              <option value={60}>1 min</option>
+              <option value={300}>5 min</option>
+              <option value={600}>10 min</option>
+              <option value={900}>15 min</option>
+            </select>
             <button 
               onClick={handleRefresh}
-              disabled={refreshing}
+              disabled={isInitialLoading || isAutoRefreshing}
               className="px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
-              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+              <RefreshCw size={18} className={isInitialLoading || isAutoRefreshing ? 'animate-spin' : ''} />
               Refresh
             </button>
             <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors">
@@ -375,9 +525,15 @@ const CRMDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Error Alert */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          {/* Total Leads */}
           <div className="bg-white rounded-xl shadow-lg shadow-blue-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white hover:shadow-blue-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-blue-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -392,7 +548,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.totalLeads.toLocaleString()}</p>
           </div>
 
-          {/* New Leads */}
           <div className="bg-white rounded-xl shadow-lg shadow-green-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white hover:shadow-green-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-green-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -407,7 +562,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.newLeads.toLocaleString()}</p>
           </div>
 
-          {/* Qualified Leads */}
           <div className="bg-white rounded-xl shadow-lg shadow-purple-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500 hover:to-purple-600 hover:text-white hover:shadow-purple-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-purple-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -422,7 +576,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.qualifiedLeads.toLocaleString()}</p>
           </div>
 
-          {/* Total Value */}
           <div className="bg-white rounded-xl shadow-lg shadow-orange-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-orange-500 hover:to-orange-600 hover:text-white hover:shadow-orange-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-orange-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -437,7 +590,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">₹{summaryData.totalValue.toLocaleString()}</p>
           </div>
 
-          {/* Conversion Rate */}
           <div className="bg-white rounded-xl shadow-lg shadow-red-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-red-500 hover:to-red-600 hover:text-white hover:shadow-red-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-red-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -453,11 +605,11 @@ const CRMDashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* Rest of the component remains the same... */}
         {/* Filters and Search */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
-              {/* Search */}
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
                 <input
@@ -469,7 +621,6 @@ const CRMDashboard: React.FC = () => {
                 />
               </div>
 
-              {/* Status Filter */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -511,7 +662,12 @@ const CRMDashboard: React.FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       Lead Name
-                      <ChevronDown size={16} className="text-gray-400" />
+                      <ChevronDown 
+                        size={16} 
+                        className={`text-gray-400 transition-transform ${
+                          sortConfig?.key === 'name' && sortConfig.direction === 'desc' ? 'rotate-180' : ''
+                        }`} 
+                      />
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Source</th>
@@ -523,7 +679,12 @@ const CRMDashboard: React.FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       Status
-                      <ChevronDown size={16} className="text-gray-400" />
+                      <ChevronDown 
+                        size={16} 
+                        className={`text-gray-400 transition-transform ${
+                          sortConfig?.key === 'status' && sortConfig.direction === 'desc' ? 'rotate-180' : ''
+                        }`} 
+                      />
                     </div>
                   </th>
                   <th 
@@ -532,7 +693,12 @@ const CRMDashboard: React.FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       Value
-                      <ChevronDown size={16} className="text-gray-400" />
+                      <ChevronDown 
+                        size={16} 
+                        className={`text-gray-400 transition-transform ${
+                          sortConfig?.key === 'value' && sortConfig.direction === 'desc' ? 'rotate-180' : ''
+                        }`} 
+                      />
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Assigned To</th>
@@ -542,152 +708,181 @@ const CRMDashboard: React.FC = () => {
                   >
                     <div className="flex items-center gap-2">
                       Created
-                      <ChevronDown size={16} className="text-gray-400" />
+                      <ChevronDown 
+                        size={16} 
+                        className={`text-gray-400 transition-transform ${
+                          sortConfig?.key === 'createdAt' && sortConfig.direction === 'desc' ? 'rotate-180' : ''
+                        }`} 
+                      />
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredLeads.map((lead) => (
-                  <tr 
-                    key={lead.id} 
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
-                    onClick={() => handleLeadClick(lead.id)}
-                  >
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
-                          {lead.name.split(' ').map(n => n[0]).join('')}
+                {isInitialLoading ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12">
+                      <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-500 mb-4" />
+                      <p className="text-gray-600">Loading leads from API...</p>
+                    </td>
+                  </tr>
+                ) : leads.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12">
+                      <div className="text-gray-400 mb-2">No leads available</div>
+                      <p className="text-gray-600">Start by adding your first lead</p>
+                    </td>
+                  </tr>
+                ) : filteredLeads.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12">
+                      <div className="text-gray-400 mb-2">No matching records found</div>
+                      <p className="text-gray-600">Try adjusting your search or filters</p>
+                    </td>
+                  </tr>
+                ) : (
+                  currentLeads.map((lead) => (
+                    <tr 
+                      key={lead.id} 
+                      className={`hover:bg-gray-50 transition-colors cursor-pointer ${
+                        lead._isNew ? 'bg-green-50 border-l-4 border-green-400' : 
+                        lead._isModified ? 'bg-blue-50 border-l-4 border-blue-400' : ''
+                      }`}
+                      onClick={() => handleLeadClick(lead.id)}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
+                            {lead.name.split(' ').map(n => n[0]).join('')}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{lead.name}</p>
+                            {lead.ucc && (
+                              <p className="text-xs text-gray-400">UCC: {lead.ucc}</p>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{lead.name}</p>
-                          {lead.ucc && (
-                            <p className="text-xs text-gray-400">UCC: {lead.ucc}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Building2 size={16} className="text-gray-400" />
+                            <span className="text-gray-900">{lead.source}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <PhoneIcon size={14} className="text-gray-400" />
+                            <span className="text-gray-900">{lead.phone}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Building2 size={16} className="text-gray-400" />
+                            <span className="text-gray-900">{lead.company}</span>
+                          </div>
+                          {lead.city && (
+                            <div className="text-sm text-gray-500">
+                              {lead.city}{lead.state ? `, ${lead.state}` : ''}
+                            </div>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Building2 size={16} className="text-gray-400" />
-                          <span className="text-gray-900">{lead.source}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <PhoneIcon size={14} className="text-gray-400" />
-                          <span className="text-gray-900">{lead.phone}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Building2 size={16} className="text-gray-400" />
-                          <span className="text-gray-900">{lead.company}</span>
-                        </div>
-                        {lead.city && (
-                          <div className="text-sm text-gray-500">
-                            {lead.city}{lead.state ? `, ${lead.state}` : ''}
-                          </div>
-                        )}
-                        {lead.branchCode && (
-                          <div className="text-xs text-gray-400">
-                            Branch: {lead.branchCode}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
-                          {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        <span className="font-semibold text-gray-900">₹{lead.value.toLocaleString()}</span>
-                        {lead.noOfEmployees && (
-                          <div className="text-xs text-gray-500">
-                            Employees: {lead.noOfEmployees}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-gray-700">{lead.assignedTo}</span>
-                      {lead.referredBy && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Referred by: {lead.referredBy}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div>
-                        <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString()}</p>
-                        <p className="text-xs text-gray-500">{lead.lastActivity}</p>
-                        {lead.firstRespondedOn && (
-                          <p className="text-xs text-gray-400">
-                            First response: {new Date(lead.firstRespondedOn).toLocaleDateString()}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        {/* Three-dot menu for status change */}
-                        <div className="relative">
-                          <button 
-                            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-                            onClick={(e) => toggleDropdown(lead.id, e)}
-                          >
-                            <MoreVertical size={18} />
-                          </button>
-                          
-                          {/* Dropdown menu */}
-                          {openDropdown === lead.id && (
-                            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10 py-1">
-                              <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">
-                                Change Status
-                              </div>
-                              {statusOptions.map((status) => (
-                                <button
-                                  key={status.value}
-                                  className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between hover:bg-gray-50 ${
-                                    lead.status === status.value ? 'bg-blue-50' : ''
-                                  }`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStatusChange(lead.id, status.value as Lead['status']);
-                                  }}
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full ${status.color.split(' ')[0]}`} />
-                                    <span>{status.label}</span>
-                                  </div>
-                                  {lead.status === status.value && (
-                                    <Check size={16} className="text-blue-600" />
-                                  )}
-                                </button>
-                              ))}
+                          {lead.branchCode && (
+                            <div className="text-xs text-gray-400">
+                              Branch: {lead.branchCode}
                             </div>
                           )}
                         </div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
+                            {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <span className="font-semibold text-gray-900">₹{lead.value.toLocaleString()}</span>
+                          {lead.noOfEmployees && (
+                            <div className="text-xs text-gray-500">
+                              Employees: {lead.noOfEmployees}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-gray-700">{lead.assignedTo}</span>
+                        {lead.referredBy && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            Referred by: {lead.referredBy}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString()}</p>
+                          <p className="text-xs text-gray-500">{lead.lastActivity}</p>
+                          {lead.firstRespondedOn && (
+                            <p className="text-xs text-gray-400">
+                              First response: {new Date(lead.firstRespondedOn).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="relative">
+                            <button 
+                              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                              onClick={(e) => toggleDropdown(lead.id, e)}
+                            >
+                              <MoreVertical size={18} />
+                            </button>
+                            
+                            {openDropdown === lead.id && (
+                              <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10 py-1">
+                                <div className="px-3 py-2 text-xs font-semibold text-gray-500 border-b border-gray-100">
+                                  Change Status
+                                </div>
+                                {statusOptions.map((status) => (
+                                  <button
+                                    key={status.value}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between hover:bg-gray-50 ${
+                                      lead.status === status.value ? 'bg-blue-50' : ''
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdown(null);
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-2 h-2 rounded-full ${status.color.split(' ')[0]}`} />
+                                      <span>{status.label}</span>
+                                    </div>
+                                    {lead.status === status.value && (
+                                      <Check size={16} className="text-blue-600" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Modern Pagination */}
-          <Pagination />
+          {/* Pagination */}
+          {!isInitialLoading && leads.length > 0 && <Pagination />}
         </div>
       </div>
     </div>

@@ -194,7 +194,7 @@ export function AppSidebar() {
                   </div>
                   {user && (
                     <p className="text-xs text-slate-500 mt-1 font-medium">
-                      {user.role} • <span className="text-slate-700">{user.email}</span>
+                     <span className="text-slate-700">{user.email}</span>
                     </p>
                   )}
                 </div>
@@ -280,7 +280,7 @@ export function AppSidebar() {
                         <User className="h-4 w-4 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-slate-800 truncate">{user.email}</p>
+                        <p className="text-sm font-bold text-slate-800 truncate">{user.employeeId}</p>
                         <p className="text-xs text-slate-500 font-medium">{user.role}</p>
                       </div>
                     </div>

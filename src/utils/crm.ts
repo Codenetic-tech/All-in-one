@@ -77,6 +77,8 @@ export interface Lead {
   communicationStatus?: string;
   firstResponseTime?: number;
   firstRespondedOn?: string;
+  _isNew?: boolean;
+  _isModified?: boolean;
 }
 
 interface CachedLeads {

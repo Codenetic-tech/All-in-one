@@ -30,7 +30,7 @@ const getDefaultRoute = (role: string | undefined) => {
     case 'banking':
       return '/segregation';
     default:
-      return '/dashboard';
+      return '/crm';
   }
 };
 
