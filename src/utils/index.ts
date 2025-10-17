@@ -12,6 +12,8 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   employeeId: string;
+  token: string;
+  path: string;
 }
 
 export interface Company {

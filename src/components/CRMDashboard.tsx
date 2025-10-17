@@ -12,6 +12,7 @@ import {
 // Import the actual useAuth hook and fetchLeads function
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLeads, type Lead } from '@/utils/crm';
+import { PathBreadcrumb } from './PathBreadcrumb';
 
 interface SummaryData {
   totalLeads: number;
@@ -515,18 +516,17 @@ const CRMDashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="w-full p-6">
+  
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-900">CRM Dashboard</h1>
+              {/* Path Breadcrumb */}
+               <PathBreadcrumb />
               {getConnectionStatusIcon()}
             </div>
             {lastUpdated && (
               <div className="flex items-center gap-4 mt-1 text-sm">
-                <span className="text-gray-500">
-                  Last updated: {lastUpdated.toLocaleTimeString()}
-                </span>
                 {(newRecordsCount > 0 || modifiedRecordsCount > 0) && (
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
                     {newRecordsCount > 0 && `${newRecordsCount} new`}
@@ -579,6 +579,10 @@ const CRMDashboard: React.FC = () => {
             {error}
           </div>
         )}
+
+        <div className="flex flex-col gap-3 mb-8">
+           <h1 className="text-3xl font-bold text-foreground">Lead Management</h1>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">

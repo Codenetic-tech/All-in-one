@@ -205,7 +205,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         avatar: '/lovable-uploads/e80701e6-7295-455c-a88c-e3c4a1baad9b.png',
         isActive: loginData.status?.toLowerCase() === 'active',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        token: loginData.token,
+        path: loginData.path
       };
 
       // Create company data
