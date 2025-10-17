@@ -24,7 +24,7 @@ interface SummaryData {
 
 const statusOptions = [
   { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-800' },
-  { value: 'contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-800' },
+  { value: 'Contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-800' },
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-800' },
   { value: 'proposal', label: 'Proposal', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'negotiation', label: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
@@ -55,6 +55,7 @@ const CRMDashboard: React.FC = () => {
   const [newRecordsCount, setNewRecordsCount] = useState(0);
   const [modifiedRecordsCount, setModifiedRecordsCount] = useState(0);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [isChangingStatus, setIsChangingStatus] = useState<string | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,6 +68,59 @@ const CRMDashboard: React.FC = () => {
   // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
+
+  // Function to change lead status
+  const changeLeadStatus = async (leadId: string, newStatus: string, leadName: string) => {
+    setIsChangingStatus(leadId);
+    setOpenDropdown(null);
+    
+    try {
+      // Send request to webhook
+      const response = await fetch('https://n8n.gopocket.in/webhook/hrms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: 'Statuschange',
+          name: leadName,
+          status: newStatus,
+          leadId: leadId,
+          employeeId: employeeId,
+          email: email,
+          timestamp: new Date().toISOString()
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Status change response:', result);
+
+      // Update local state if webhook call was successful
+      setLeads(prevLeads => 
+        prevLeads.map(lead => 
+          lead.id === leadId 
+            ? { ...lead, status: newStatus as Lead['status'] }
+            : lead
+        )
+      );
+
+      // Show success feedback
+      console.log(`Status changed to ${newStatus} for lead: ${leadName}`);
+      
+    } catch (error: any) {
+      console.error('Error changing lead status:', error);
+      setError(`Failed to change status: ${error.message}`);
+      
+      // Revert the status change in UI if the API call failed
+      // You might want to show a toast notification here instead
+    } finally {
+      setIsChangingStatus(null);
+    }
+  };
 
   // Fetch all leads using the actual fetchLeads function
   const fetchAllLeads = async (isAutoRefresh = false) => {
@@ -238,7 +292,7 @@ const CRMDashboard: React.FC = () => {
     return {
       totalLeads: leads.length,
       newLeads: leads.filter(lead => lead.status === 'new').length,
-      contactedLeads: leads.filter(lead => lead.status === 'contacted').length,
+      contactedLeads: leads.filter(lead => lead.status === 'Contacted').length,
       qualifiedLeads: leads.filter(lead => lead.status === 'qualified').length,
       totalValue: leads.reduce((sum, lead) => sum + lead.value, 0),
       conversionRate: Math.round((leads.filter(lead => ['qualified', 'proposal', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
@@ -319,7 +373,7 @@ const CRMDashboard: React.FC = () => {
   const getStatusColor = (status: Lead['status']) => {
     const colors = {
       new: 'bg-blue-100 text-blue-800',
-      contacted: 'bg-purple-100 text-purple-800',
+      Contacted: 'bg-purple-100 text-purple-800',
       qualified: 'bg-green-100 text-green-800',
       proposal: 'bg-yellow-100 text-yellow-800',
       negotiation: 'bg-orange-100 text-orange-800',
@@ -584,7 +638,6 @@ const CRMDashboard: React.FC = () => {
             <p className="text-2xl font-bold">{summaryData.qualifiedLeads.toLocaleString()}</p>
           </div>
 
-
           <div className="bg-white rounded-xl shadow-lg shadow-red-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-red-500 hover:to-red-600 hover:text-white hover:shadow-red-500/40 group">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-red-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
@@ -600,7 +653,6 @@ const CRMDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Rest of the component remains the same... */}
         {/* Filters and Search */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -623,7 +675,7 @@ const CRMDashboard: React.FC = () => {
               >
                 <option value="all">All Status</option>
                 <option value="new">New</option>
-                <option value="contacted">Contacted</option>
+                <option value="Contacted">Contacted</option>
                 <option value="qualified">Qualified</option>
                 <option value="proposal">Proposal</option>
                 <option value="negotiation">Negotiation</option>
@@ -666,8 +718,9 @@ const CRMDashboard: React.FC = () => {
                     </div>
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Source</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Campaign</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Company & Location</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">City</th>
                   <th 
                     className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('status')}
@@ -762,8 +815,14 @@ const CRMDashboard: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <Building2 size={16} className="text-gray-400" />
                             <span className="text-gray-900">{lead.source}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900">{lead.campaign}</span>
                           </div>
                         </div>
                       </td>
@@ -779,13 +838,8 @@ const CRMDashboard: React.FC = () => {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <Building2 size={16} className="text-gray-400" />
-                            <span className="text-gray-900">{lead.company}</span>
+                            <span className="text-gray-900">{lead.city}</span>
                           </div>
-                          {lead.city && (
-                            <div className="text-sm text-gray-500">
-                              {lead.city}{lead.state ? `, ${lead.state}` : ''}
-                            </div>
-                          )}
                           {lead.branchCode && (
                             <div className="text-xs text-gray-400">
                               Branch: {lead.branchCode}
@@ -835,8 +889,13 @@ const CRMDashboard: React.FC = () => {
                             <button 
                               className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                               onClick={(e) => toggleDropdown(lead.id, e)}
+                              disabled={isChangingStatus === lead.id}
                             >
-                              <MoreVertical size={18} />
+                              {isChangingStatus === lead.id ? (
+                                <RefreshCw size={18} className="animate-spin" />
+                              ) : (
+                                <MoreVertical size={18} />
+                              )}
                             </button>
                             
                             {openDropdown === lead.id && (
@@ -852,7 +911,7 @@ const CRMDashboard: React.FC = () => {
                                     }`}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setOpenDropdown(null);
+                                      changeLeadStatus(lead.id, status.value, lead.name);
                                     }}
                                   >
                                     <div className="flex items-center gap-2">

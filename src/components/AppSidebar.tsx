@@ -131,11 +131,17 @@ const allMenuItems = [
   },
 ];
 
+
 export function AppSidebar() {
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, setOpen } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   const { user, logout } = useAuth();
+
+  // Set collapsed state as default on mount
+  React.useEffect(() => {
+    setOpen(false);
+  }, []);
 
   const isActive = (path: string) => currentPath === path;
   const isCollapsed = state === 'collapsed' || state === undefined;

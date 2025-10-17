@@ -69,7 +69,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ message = "Signing you in
 
         {/* Loading Message */}
         <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-gray-800 animate-fade-in">GoPocket HRMS</h2>
+          <h2 className="text-2xl font-bold text-gray-800 animate-fade-in">GoPocket All in One APP</h2>
           <p className="text-gray-600 animate-fade-in">{message}</p>
         </div>
 

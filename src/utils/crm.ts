@@ -43,6 +43,7 @@ export interface APILead {
   assigned?: string;
   industry?: string;
   notes?: string;
+  campaign?: string;
 }
 
 export interface Lead {
@@ -51,7 +52,7 @@ export interface Lead {
   email: string;
   phone: string;
   company: string;
-  status: 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+  status: 'new' | 'Contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
   source: string;
   value: number;
   createdAt: string;
@@ -79,6 +80,7 @@ export interface Lead {
   firstRespondedOn?: string;
   _isNew?: boolean;
   _isModified?: boolean;
+  campaign?: string;
 }
 
 interface CachedLeads {
@@ -95,7 +97,7 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const mapApiStatus = (apiStatus: string): Lead['status'] => {
   const statusMap: { [key: string]: Lead['status'] } = {
     'New': 'new',
-    'Contacted': 'contacted',
+    'Contacted': 'Contacted',
     'Qualified': 'qualified',
     'Proposal': 'proposal',
     'Negotiation': 'negotiation',
@@ -158,7 +160,8 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
     noOfEmployees: apiLead.no_of_employees,
     communicationStatus: apiLead.communication_status,
     firstResponseTime: apiLead.first_response_time,
-    firstRespondedOn: apiLead.first_responded_on
+    firstRespondedOn: apiLead.first_responded_on,
+    campaign: apiLead.campaign
   };
 };
 

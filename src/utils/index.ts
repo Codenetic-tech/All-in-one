@@ -48,6 +48,8 @@ export interface Employee {
   status: 'probation' | 'confirmed' | 'resigned' | 'terminated';
   managerId?: string;
   address: string;
+  token: string;
+  path: string;
   emergencyContact: {
     name: string;
     phone: string;

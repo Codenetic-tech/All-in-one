@@ -7,6 +7,8 @@ interface AuthContextType {
   company: Company | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  token: string | null;
+  path: string | null;
   login: (employeeId: string, password: string) => Promise<void>;
   logout: () => void;
   switchRole: (role: string) => void;
@@ -32,24 +34,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [company, setCompany] = useState<Company | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
+  const [path, setPath] = useState<string | null>(null);
 
-  // Simple session check - just verify we have valid stored data
+  // Improved session check - more flexible validation
   const hasValidStoredAuth = () => {
     try {
       const savedUser = localStorage.getItem('hrms_user');
       const savedEmployee = localStorage.getItem('hrms_employee');
       const savedCompany = localStorage.getItem('hrms_company');
+      const savedToken = localStorage.getItem('hrms_token');
       
-      if (!savedUser || !savedEmployee || !savedCompany) {
+      // Check if we have the essential data
+      if (!savedUser || !savedEmployee) {
         return false;
       }
 
       const userData = JSON.parse(savedUser);
       const employeeData = JSON.parse(savedEmployee);
-      const companyData = JSON.parse(savedCompany);
+      const companyData = savedCompany ? JSON.parse(savedCompany) : null;
 
       // Basic validation - check if required fields exist
-      return !!(userData && userData.id && employeeData && employeeData.employeeId);
+      const hasValidUser = !!(userData && userData.id);
+      const hasValidEmployee = !!(employeeData && employeeData.employeeId);
+      
+      return hasValidUser && hasValidEmployee;
     } catch (error) {
       console.error('Error checking stored auth:', error);
       return false;
@@ -63,10 +72,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const savedUser = localStorage.getItem('hrms_user');
           const savedEmployee = localStorage.getItem('hrms_employee');
           const savedCompany = localStorage.getItem('hrms_company');
+          const savedToken = localStorage.getItem('hrms_token');
+          const savedPath = localStorage.getItem('hrms_path');
 
           if (savedUser) setUser(JSON.parse(savedUser));
           if (savedEmployee) setEmployee(JSON.parse(savedEmployee));
           if (savedCompany) setCompany(JSON.parse(savedCompany));
+          if (savedToken) setToken(savedToken);
+          if (savedPath) setPath(savedPath);
           setIsAuthenticated(true);
         } else {
           // Clear any corrupted/incomplete data
@@ -88,126 +101,117 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setEmployee(null);
     setCompany(null);
     setIsAuthenticated(false);
+    setToken(null);
+    setPath(null);
     
     // Clear all auth-related localStorage items
     localStorage.removeItem('hrms_user');
     localStorage.removeItem('hrms_employee');
     localStorage.removeItem('hrms_company');
     localStorage.removeItem('hrms_cookies');
+    localStorage.removeItem('hrms_token');
+    localStorage.removeItem('hrms_path');
   };
 
   const login = async (employeeId: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Make login request
-      const loginResponse = await fetch('https://hrms-db.gopocket.in/api/method/login', {
+      // Make login request to n8n webhook
+      const loginResponse = await fetch('https://n8n.gopocket.in/webhook/hrms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({
           usr: employeeId,
           pwd: password
         })
       });
 
-      const loginData = await loginResponse.json();
-      console.log('Login response:', loginData);
+      const responseData = await loginResponse.json();
+      console.log('Login response:', responseData);
+
+      // Handle failed login response
+      if (Array.isArray(responseData) && responseData.length > 0) {
+        const firstItem = responseData[0];
+        if (firstItem.status === "FAILED") {
+          throw new Error('Wrong Backoffice password');
+        }
+      }
 
       if (!loginResponse.ok) {
-        const errorMessage = loginData.message || loginData.exc || loginData.error || `Authentication failed with status ${loginResponse.status}`;
+        const errorMessage = responseData.message || responseData.exc || responseData.error || `Authentication failed with status ${loginResponse.status}`;
         throw new Error(errorMessage);
       }
 
-      if (loginData.exc) {
+      if (responseData.exc) {
         throw new Error('Invalid employee ID or password');
       }
 
-      // Try to get employee data from webhook, but don't fail if it doesn't work
-      let employeeData = null;
-      try {
-        const webhookResponse = await fetch('https://n8n.gopocket.in/webhook/hrms', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            usr: employeeId,
-            pwd: password
-          })
-        });
+      // Extract login data from response (could be array or object)
+      const loginData = Array.isArray(responseData) ? responseData[0] : responseData;
 
-        if (webhookResponse.ok) {
-          const webhookData = await webhookResponse.json();
-          console.log('n8n webhook response:', webhookData);
-          
-          if (Array.isArray(webhookData) && webhookData.length > 0) {
-            const empData = webhookData[0];
-            const avatarUrl = empData.image 
-              ? (empData.image.startsWith('http') 
-                  ? empData.image 
-                  : `https://hrms-db.gopocket.in${empData.image}`)
-              : undefined;
-            
-            employeeData = {
-              id: empData.name,
-              employeeId: empData.employee,
-              userId: empData.name,
-              companyId: empData.company?.toLowerCase().replace(/\s+/g, '-') || 'gopocket',
-              firstName: empData.first_name,
-              lastName: empData.last_name || '',
-              email: empData.company_email || empData.personal_email,
-              phone: empData.cell_number,
-              avatar: avatarUrl,
-              department: empData.department,
-              designation: empData.designation,
-              joiningDate: empData.date_of_joining,
-              salary: empData.ctc || 0,
-              status: empData.status?.toLowerCase() === 'active' ? 'confirmed' : 'probation',
-              address: '',
-              emergencyContact: {
-                name: empData.person_to_be_contacted || '',
-                phone: empData.emergency_phone_number || '',
-                relationship: empData.relation || ''
-              },
-              documents: [],
-              createdAt: empData.creation,
-              updatedAt: empData.modified
-            } as Employee;
-          }
-        }
-      } catch (webhookError) {
-        console.warn('Webhook call failed, continuing with basic user data:', webhookError);
+      // Check if we have the required data in the response
+      if (!loginData.employee && !loginData.first_name) {
+        throw new Error('Wrong Backoffice password contact IT');
       }
 
-      // Determine user role
+      // Determine user role based on employee ID or designation
       let userRole: User['role'] = 'employee';
       if (employeeId === 'HR001' || employeeId === 'hr001') {
         userRole = 'admin';
-      } else if (employeeData?.designation?.toLowerCase().includes('manager')) {
+      } else if (loginData.designation?.toLowerCase().includes('manager')) {
         userRole = 'manager';
       }
 
+      // Create employee data from the API response
+      const employeeData: Employee = {
+        id: loginData.name,
+        employeeId: loginData.employee,
+        userId: loginData.user_id,
+        companyId: (loginData.company || 'gopocket').toLowerCase().replace(/\s+/g, '-'),
+        firstName: loginData.first_name,
+        lastName: loginData.last_name || '',
+        email: loginData.company_email || loginData.prefered_email,
+        phone: loginData.cell_number,
+        avatar: '/lovable-uploads/e80701e6-7295-455c-a88c-e3c4a1baad9b.png', // Default avatar
+        department: loginData.department,
+        designation: loginData.designation,
+        joiningDate: loginData.date_of_joining,
+        salary: 0, // Not provided in response
+        status: loginData.status?.toLowerCase() === 'active' ? 'confirmed' : 'probation',
+        address: loginData.current_address || '',
+        token: loginData.token,
+        path: loginData.path,
+        emergencyContact: {
+          name: '',
+          phone: '',
+          relationship: ''
+        },
+        documents: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
       // Create user data
       const userData: User = {
-        id: loginData.message?.user_id || employeeData?.id || `user-${Date.now()}`,
-        employeeId: employeeId,
-        email: employeeData?.email || `${employeeId}@gopocket.in`,
-        firstName: employeeData?.firstName || loginData.message?.first_name || loginData.full_name?.split(' ')[0] || 'User',
-        lastName: employeeData?.lastName || loginData.message?.last_name || loginData.full_name?.split(' ').slice(1).join(' ') || 'Name',
+        id: loginData.user_id || loginData.name,
+        employeeId: loginData.employee,
+        email: loginData.company_email || loginData.prefered_email,
+        firstName: loginData.first_name.split(' ')[0] || 'User',
+        lastName: loginData.first_name.split(' ').slice(1).join(' ') || 'Name',
         role: userRole,
-        companyId: employeeData?.companyId || 'gopocket',
-        avatar: employeeData?.avatar || '/lovable-uploads/e80701e6-7295-455c-a88c-e3c4a1baad9b.png',
-        isActive: true,
-        createdAt: employeeData?.createdAt || new Date().toISOString(),
-        updatedAt: employeeData?.updatedAt || new Date().toISOString()
+        companyId: employeeData.companyId,
+        avatar: '/lovable-uploads/e80701e6-7295-455c-a88c-e3c4a1baad9b.png',
+        isActive: loginData.status?.toLowerCase() === 'active',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       // Create company data
       const companyData: Company = {
-        id: employeeData?.companyId || 'gopocket',
-        name: employeeData?.companyId === 'gopocket' ? 'GoPocket' : 'Company Name',
+        id: employeeData.companyId,
+        name: loginData.company || 'GoPocket',
         subdomain: 'gopocket',
         logo: '/lovable-uploads/e80701e6-7295-455c-a88c-e3c4a1baad9b.png',
         address: '123 Business St, Tech City, TC 12345',
@@ -227,14 +231,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setEmployee(employeeData);
       setCompany(companyData);
       setIsAuthenticated(true);
+      setToken(loginData.token || null);
+      setPath(loginData.path || null);
       
       // Save to localStorage - this is critical for persistence
       localStorage.setItem('hrms_user', JSON.stringify(userData));
-      if (employeeData) {
-        localStorage.setItem('hrms_employee', JSON.stringify(employeeData));
-      }
+      localStorage.setItem('hrms_employee', JSON.stringify(employeeData));
       localStorage.setItem('hrms_company', JSON.stringify(companyData));
-
+      localStorage.setItem('hrms_token', loginData.token || '');
+      localStorage.setItem('hrms_path', loginData.path || '');
+      
     } catch (error) {
       console.error('Login error:', error);
       clearAuthData();
@@ -277,6 +283,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       company,
       isAuthenticated,
       isLoading,
+      token,
+      path,
       login,
       logout,
       switchRole,
