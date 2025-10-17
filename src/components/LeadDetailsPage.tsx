@@ -9,6 +9,9 @@ import {
   Search, Filter, Archive, Trash2, Plus
 } from 'lucide-react';
 import { getLeadById, type Lead } from '@/utils/crm';
+import { getCachedLeadDetails } from '@/utils/crmCache';
+import { useAuth } from '@/contexts/AuthContext';
+
 
 interface Tab {
   id: string;
@@ -46,6 +49,7 @@ const mockWhatsAppMessages = [
 ];
 
 const LeadDetailsPage: React.FC = () => {
+  const { user } = useAuth();
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const [lead, setLead] = useState<Lead | null>(null);
@@ -55,10 +59,9 @@ const LeadDetailsPage: React.FC = () => {
   const [messages, setMessages] = useState(mockWhatsAppMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // User credentials (in real app, these would come from auth context)
-  const employeeId = 'sky1101';
-  const email = 'ajmal1995.la@gmail.com';
-
+  const employeeId = user?.employeeId || '';
+  const email = user?.email || '';
+  
   const tabs: Tab[] = [
     { id: 'activity', label: 'Activity', icon: Activity },
     { id: 'task', label: 'Tasks', icon: CheckSquare },
@@ -68,23 +71,32 @@ const LeadDetailsPage: React.FC = () => {
   ];
 
   useEffect(() => {
-    const fetchLead = async () => {
-      setLoading(true);
-      try {
-        if (leadId) {
-          const leadData = await getLeadById(leadId, employeeId, email);
-          setLead(leadData);
+  const loadLead = async () => {
+    setLoading(true);
+    try {
+      if (leadId) {
+        // First, check if we have the lead in the cache
+        const cachedLead = getCachedLeadDetails(leadId);
+        if (cachedLead) {
+          setLead(cachedLead);
+          setLoading(false);
+          return;
         }
-      } catch (error) {
-        console.error('Error fetching lead:', error);
-        setLead(null);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchLead();
-  }, [leadId, employeeId, email]);
+        // If not in cache, then fetch from API (which will also update the cache)
+        const leadData = await getLeadById(leadId, employeeId, email);
+        setLead(leadData);
+      }
+    } catch (error) {
+      console.error('Error fetching lead:', error);
+      setLead(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadLead();
+}, [leadId, employeeId, email]);
 
   useEffect(() => {
     scrollToBottom();
@@ -129,7 +141,7 @@ const LeadDetailsPage: React.FC = () => {
   const getStatusColor = (status: Lead['status']) => {
     const colors = {
       new: 'bg-blue-100 text-blue-800',
-      contacted: 'bg-purple-100 text-purple-800',
+      Contacted: 'bg-purple-100 text-purple-800',
       qualified: 'bg-green-100 text-green-800',
       proposal: 'bg-yellow-100 text-yellow-800',
       negotiation: 'bg-orange-100 text-orange-800',

@@ -83,15 +83,14 @@ export interface Lead {
   campaign?: string;
 }
 
-interface CachedLeads {
-  data: Lead[];
-  timestamp: number;
-  employeeId: string;
-  email: string;
-}
-
-const CACHE_KEY = 'crm_leads_cache';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+// Import cache functions
+import { 
+  getCachedLeads, 
+  saveLeadsToCache, 
+  getCachedLeadDetails, 
+  saveLeadDetailsToCache,
+  clearAllCache 
+} from '@/utils/crmCache';
 
 // Function to map API status to our status
 const mapApiStatus = (apiStatus: string): Lead['status'] => {
@@ -165,43 +164,6 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
   };
 };
 
-// Get cached leads
-const getCachedLeads = (employeeId: string, email: string): Lead[] | null => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (!cached) return null;
-
-    const cachedData: CachedLeads = JSON.parse(cached);
-    const isExpired = Date.now() - cachedData.timestamp > CACHE_DURATION;
-    const isSameUser = cachedData.employeeId === employeeId && cachedData.email === email;
-
-    if (isExpired || !isSameUser) {
-      localStorage.removeItem(CACHE_KEY);
-      return null;
-    }
-
-    return cachedData.data;
-  } catch (error) {
-    console.error('Error reading from cache:', error);
-    return null;
-  }
-};
-
-// Save leads to cache
-const saveLeadsToCache = (leads: Lead[], employeeId: string, email: string): void => {
-  try {
-    const cacheData: CachedLeads = {
-      data: leads,
-      timestamp: Date.now(),
-      employeeId,
-      email
-    };
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-  } catch (error) {
-    console.error('Error saving to cache:', error);
-  }
-};
-
 export const fetchLeads = async (employeeId: string, email: string): Promise<Lead[]> => {
   // Check cache first
   const cachedLeads = getCachedLeads(employeeId, email);
@@ -219,8 +181,8 @@ export const fetchLeads = async (employeeId: string, email: string): Promise<Lea
       },
       body: JSON.stringify({
         source: 'Lead',
-        employeeId: employeeId, // Use the parameters
-        email: email           // Use the parameters
+        employeeId: employeeId,
+        email: email
       })
     });
 
@@ -243,11 +205,26 @@ export const fetchLeads = async (employeeId: string, email: string): Promise<Lea
   }
 };
 
-// Get lead by ID
+// Get lead by ID - updated to use cache
 export const getLeadById = async (leadId: string, employeeId: string, email: string): Promise<Lead | null> => {
   try {
+    // Check cache first
+    const cachedLead = getCachedLeadDetails(leadId);
+    if (cachedLead) {
+      console.log('Returning cached lead details');
+      return cachedLead;
+    }
+
+    // If not in cache, fetch from API
     const leads = await fetchLeads(employeeId, email);
-    return leads.find(lead => lead.id === leadId) || null;
+    const lead = leads.find(lead => lead.id === leadId) || null;
+    
+    // Save to cache if found
+    if (lead) {
+      saveLeadDetailsToCache(leadId, lead);
+    }
+    
+    return lead;
   } catch (error) {
     console.error('Error getting lead by ID:', error);
     return null;
@@ -257,48 +234,40 @@ export const getLeadById = async (leadId: string, employeeId: string, email: str
 // Force refresh leads (ignore cache)
 export const refreshLeads = async (employeeId: string, email: string): Promise<Lead[]> => {
   // Clear cache
-  localStorage.removeItem(CACHE_KEY);
+  clearAllCache();
   return fetchLeads(employeeId, email);
 };
 
 // Update lead status
 export const updateLeadStatus = (leadId: string, newStatus: Lead['status']): void => {
   try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (cached) {
-      const cachedData: CachedLeads = JSON.parse(cached);
-      const updatedLeads = cachedData.data.map(lead =>
+    // Update leads cache
+    const leadsCache = localStorage.getItem('crm_leads_cache');
+    if (leadsCache) {
+      const cachedData = JSON.parse(leadsCache);
+      const updatedLeads = cachedData.data.map((lead: Lead) =>
         lead.id === leadId 
           ? { ...lead, status: newStatus, lastActivity: 'Just now' }
           : lead
       );
-      saveLeadsToCache(updatedLeads, cachedData.employeeId, cachedData.email);
+      cachedData.data = updatedLeads;
+      localStorage.setItem('crm_leads_cache', JSON.stringify(cachedData));
+    }
+
+    // Update lead details cache
+    const detailsCache = localStorage.getItem('crm_lead_details_cache');
+    if (detailsCache) {
+      const cachedData = JSON.parse(detailsCache);
+      if (cachedData[leadId]) {
+        cachedData[leadId].lead.status = newStatus;
+        cachedData[leadId].lead.lastActivity = 'Just now';
+        localStorage.setItem('crm_lead_details_cache', JSON.stringify(cachedData));
+      }
     }
   } catch (error) {
     console.error('Error updating lead status:', error);
   }
 };
 
-// Get cache info
-export const getCacheInfo = (): { hasCache: boolean; isExpired: boolean; timestamp?: number } => {
-  try {
-    const cached = localStorage.getItem(CACHE_KEY);
-    if (!cached) return { hasCache: false, isExpired: true };
-
-    const cachedData: CachedLeads = JSON.parse(cached);
-    const isExpired = Date.now() - cachedData.timestamp > CACHE_DURATION;
-
-    return {
-      hasCache: true,
-      isExpired,
-      timestamp: cachedData.timestamp
-    };
-  } catch {
-    return { hasCache: false, isExpired: true };
-  }
-};
-
-// Clear cache
-export const clearCache = (): void => {
-  localStorage.removeItem(CACHE_KEY);
-};
+// Re-export cache functions
+export { clearAllCache, getCacheInfo } from '@/utils/crmCache';

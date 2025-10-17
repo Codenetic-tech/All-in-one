@@ -11,7 +11,7 @@ import {
 
 // Import the actual useAuth hook and fetchLeads function
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchLeads, type Lead } from '@/utils/crm';
+import { fetchLeads, refreshLeads, type Lead, clearAllCache } from '@/utils/crm';
 import { PathBreadcrumb } from './PathBreadcrumb';
 
 interface SummaryData {
@@ -393,6 +393,15 @@ const CRMDashboard: React.FC = () => {
     await fetchAllLeads(false);
   };
 
+  const handleClearCacheAndRefresh = async () => {
+    if (!employeeId || !email) return;
+    
+    // Clear cache and force refresh from API
+    clearAllCache();
+    await refreshLeads(employeeId, email);
+    await fetchAllLeads(false);
+  };
+
   const toggleDropdown = (leadId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenDropdown(openDropdown === leadId ? null : leadId);
@@ -559,7 +568,7 @@ const CRMDashboard: React.FC = () => {
               <option value={900}>15 min</option>
             </select>
             <button 
-              onClick={handleRefresh}
+              onClick={handleClearCacheAndRefresh}
               disabled={isInitialLoading || isAutoRefreshing}
               className="px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
             >
