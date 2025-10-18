@@ -27,12 +27,27 @@ import {
   Wifi,
   Building2,
   Sparkles,
+  User2,
+  Ticket,
+  AlarmClockCheck,
+  ShieldCheck,
+  Megaphone,
+  MegaphoneIcon,
+  Drum,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
 // Define all possible menu items - removed subitems
 const allMenuItems = [
+    {
+    title: 'Dashboard',
+    url: '/realtime',
+    icon: LayoutDashboard,
+    color: 'text-purple-500',
+    bgColor: 'bg-purple-50',
+    roles: ['manager', 'employee']
+  },
   {
     title: 'Leads',
     url: '/crm',
@@ -42,36 +57,28 @@ const allMenuItems = [
     roles: ['manager', 'employee']
   },
   {
-    title: 'Dashboard',
-    url: '/realtime',
-    icon: LayoutDashboard,
-    color: 'text-purple-500',
-    bgColor: 'bg-purple-50',
-    roles: ['manager', 'Analyst']
-  },
-  {
-    title: 'GlobeFund',
-    url: '/globe',
-    icon: Wifi,
+    title: 'Client',
+    url: '/client',
+    icon: User2,
     color: 'text-emerald-500',
     bgColor: 'bg-emerald-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Morning BOD',
-    url: '/morning-bod',
-    icon: Sunrise,
+    title: 'Incentive',
+    url: '/incentive',
+    icon: IndianRupee,
     color: 'text-amber-500',
     bgColor: 'bg-amber-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Morning Intersegment',
-    url: '/morning-intersegment',
-    icon: Clock,
+    title: 'Tickets',
+    url: '/tickets',
+    icon: Ticket,
     color: 'text-indigo-500',
     bgColor: 'bg-indigo-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
     title: 'Reports',
@@ -79,39 +86,39 @@ const allMenuItems = [
     icon: FileSpreadsheet,
     color: 'text-rose-500',
     bgColor: 'bg-rose-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Brokerage',
-    url: '/brokerage',
+    title: 'Contest',
+    url: '/contest',
     icon: TrendingUp,
     color: 'text-green-500',
     bgColor: 'bg-green-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Evening Intersegment',
-    url: '/evening-intersegment',
-    icon: Clock,
+    title: 'Task',
+    url: '/task',
+    icon: AlarmClockCheck,
     color: 'text-violet-500',
     bgColor: 'bg-violet-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Allocation Check',
-    url: '/allocation-check',
-    icon: CheckSquare,
+    title: 'Hrms',
+    url: '/hrms',
+    icon: ShieldCheck,
     color: 'text-teal-500',
     bgColor: 'bg-teal-50',
-    roles: ['manager', 'Analyst']
+    roles: ['manager', 'employee']
   },
   {
-    title: 'Payout',
-    url: '/payout',
-    icon: IndianRupee,
-    color: 'text-emerald-500',
-    bgColor: 'bg-emerald-50',
-    roles: ['manager', 'Analyst', 'banking']
+    title: 'Announcement',
+    url: '/announcement',
+    icon: Drum,
+    color: 'text-rose-500',
+    bgColor: 'bg-rose-50',
+    roles: ['manager', 'employee', 'banking']
   },
   {
     title: 'Settings',
@@ -120,14 +127,6 @@ const allMenuItems = [
     color: 'text-slate-500',
     bgColor: 'bg-slate-50',
     roles: ['manager']
-  },
-  {
-    title: 'Segregation',
-    url: '/segregation',
-    icon: CheckSquare,
-    color: 'text-cyan-500',
-    bgColor: 'bg-cyan-50',
-    roles: ['manager', 'Analyst', 'banking']
   },
 ];
 

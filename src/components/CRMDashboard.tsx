@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLeads, refreshLeads, type Lead, clearAllCache } from '@/utils/crm';
 import { PathBreadcrumb } from './PathBreadcrumb';
+import { SummaryCard, SummaryCardsGrid } from './SummaryCard';
 
 interface SummaryData {
   totalLeads: number;
@@ -594,77 +595,24 @@ const CRMDashboard: React.FC = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-lg shadow-blue-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-blue-500 hover:to-blue-600 hover:text-white hover:shadow-blue-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-blue-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <Users size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-blue-100 text-blue-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                12.5%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">Total Leads</h3>
-            <p className="text-2xl font-bold">{summaryData.totalLeads.toLocaleString()}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg shadow-green-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-green-500 hover:to-green-600 hover:text-white hover:shadow-green-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-green-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <User size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-green-100 text-green-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                8.2%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">New Leads</h3>
-            <p className="text-2xl font-bold">{summaryData.newLeads.toLocaleString()}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg shadow-orange-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-orange-500 hover:to-orange-600 hover:text-white hover:shadow-orange-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-orange-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <IndianRupee size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-orange-100 text-orange-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                22.1%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">Contacted Leads</h3>
-            <p className="text-2xl font-bold">₹{summaryData.contactedLeads.toLocaleString()}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg shadow-purple-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-purple-500 hover:to-purple-600 hover:text-white hover:shadow-purple-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-purple-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <CheckSquare size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-purple-100 text-purple-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                15.3%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">Qualified Leads</h3>
-            <p className="text-2xl font-bold">{summaryData.qualifiedLeads.toLocaleString()}</p>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-lg shadow-red-100 p-6 text-gray-800 transition-all duration-300 hover:bg-gradient-to-br hover:from-red-500 hover:to-red-600 hover:text-white hover:shadow-red-500/40 group">
-            <div className="flex items-center justify-between mb-3">
-              <div className="bg-red-500 p-2 rounded-lg transition-colors duration-300 group-hover:bg-white/20 backdrop-blur-sm">
-                <TrendingUp size={24} className="text-white" />
-              </div>
-              <div className="flex items-center gap-1 text-xs font-semibold bg-red-100 text-red-600 px-2 py-1 rounded-full group-hover:bg-white/20 group-hover:text-white">
-                <ArrowUpRight size={14} />
-                5.7%
-              </div>
-            </div>
-            <h3 className="text-sm font-medium opacity-90 mb-1">Conversion Rate</h3>
-            <p className="text-2xl font-bold">{summaryData.conversionRate}%</p>
-          </div>
-        </div>
+        <SummaryCardsGrid columns={5} className="mb-6">
+          <SummaryCard
+            title="Total Leads" value={summaryData.totalLeads} icon={Users} color="blue" shadowColor="blue" trend={{ value: 12.5, isPositive: true }} showTrend={true} />
+          
+          <SummaryCard
+            title="New Leads" value={summaryData.newLeads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} />
+          
+          <SummaryCard
+            title="Contacted Leads" value={summaryData.contactedLeads} icon={IndianRupee} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
+            showTrend={true} prefix="₹" />
+          
+          <SummaryCard
+            title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
+          
+          <SummaryCard
+            title="Conversion Rate" value={summaryData.conversionRate} icon={TrendingUp} color="red" shadowColor="red" trend={{ value: 5.7, isPositive: true }}
+            showTrend={true} suffix="%" />
+        </SummaryCardsGrid>
 
         {/* Filters and Search */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
@@ -878,7 +826,7 @@ const CRMDashboard: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-gray-700">{lead.assignedTo}</span>
+                        <span className="text-gray-700">{user.firstName}</span>
                         {lead.referredBy && (
                           <div className="text-xs text-gray-500 mt-1">
                             Referred by: {lead.referredBy}
