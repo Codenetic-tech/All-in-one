@@ -11,6 +11,8 @@ import CRMDashboard from './components/CRMDashboard';
 import LeadDetailsPage from './components/LeadDetailsPage';
 import LoginForm from './components/Auth/LoginForm';
 import { Sparkles } from 'lucide-react';
+import Incentive from './components/management';
+import Tickets from './components/tickets';
 
 const queryClient = new QueryClient();
 
@@ -102,7 +104,7 @@ const AppContent = () => {
           path="/client" 
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Incentive />
             </ProtectedRoute>
           } 
         />
@@ -110,7 +112,7 @@ const AppContent = () => {
           path="/incentive" 
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Incentive/>
             </ProtectedRoute>
           } 
         />
@@ -118,7 +120,7 @@ const AppContent = () => {
           path="/tickets" 
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Tickets />
             </ProtectedRoute>
           } 
         />

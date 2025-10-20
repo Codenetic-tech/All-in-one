@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Breadcrumb,
@@ -19,6 +18,11 @@ export function PathBreadcrumb() {
   // Parse the path and filter out empty segments
   const pathSegments = user.path.split('\\').filter(segment => segment.trim() !== '');
 
+  // Append employeeId at the end (if available)
+  if (user.employeeId) {
+    pathSegments.push(user.employeeId);
+  }
+
   if (pathSegments.length === 0) return null;
 
   return (
@@ -26,13 +30,13 @@ export function PathBreadcrumb() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 text-slate-600">
           <Building2 className="h-4 w-4" />
-          <span className="font-medium">Organization GoPocket :</span>
+          <span className="font-medium">GoPocket :</span>
         </div>
         
         <Breadcrumb>
           <BreadcrumbList>
             {pathSegments.map((segment, index) => (
-              <React.Fragment key={segment}>
+              <React.Fragment key={index}>
                 <BreadcrumbItem>
                   {index === pathSegments.length - 1 ? (
                     <BreadcrumbPage className="font-medium text-blue-700 bg-blue-50 px-2 py-1 rounded-md">
