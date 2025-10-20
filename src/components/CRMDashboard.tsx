@@ -835,7 +835,7 @@ const CRMDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div>
-                          <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString()}</p>
+                          <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString('en-GB')}</p>
                           <p className="text-xs text-gray-500">{lead.lastActivity}</p>
                           {lead.firstRespondedOn && (
                             <p className="text-xs text-gray-400">
