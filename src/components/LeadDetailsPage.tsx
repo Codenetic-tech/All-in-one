@@ -230,7 +230,7 @@ const LeadDetailsPage: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-                <p className="text-gray-600">{lead.company} • {lead.industry}</p>
+                <p className="text-gray-600">{lead.source}</p>
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <MailIcon size={16} />
@@ -253,10 +253,10 @@ const LeadDetailsPage: React.FC = () => {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-gray-900">₹{lead.value.toLocaleString()}</p>
-              <p className="text-sm text-gray-600">Lead Value</p>
+              <p className="text-xl font-bold text-gray-900">{lead.id}</p>
+              <p className="text-sm text-gray-600">Last Modified</p>
               {lead.noOfEmployees && (
-                <p className="text-sm text-gray-500 mt-1">Employees: {lead.noOfEmployees}</p>
+                <p className="text-sm text-gray-500 mt-1">{lead.lastActivity}</p>
               )}
             </div>
           </div>

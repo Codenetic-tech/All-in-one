@@ -19,6 +19,7 @@ interface SummaryData {
   totalLeads: number;
   newLeads: number;
   contactedLeads: number;
+  followup: number;
   qualifiedLeads: number;
   totalValue: number;
   conversionRate: number;
@@ -27,11 +28,11 @@ interface SummaryData {
 const statusOptions = [
   { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-800' },
   { value: 'Contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-800' },
+  { value: 'followup', label: 'Followup', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-800' },
-  { value: 'proposal', label: 'Proposal', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'negotiation', label: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
-  { value: 'won', label: 'Won', color: 'bg-emerald-100 text-emerald-800' },
-  { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800' }
+  //{ value: 'negotiation', label: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
+  //{ value: 'won', label: 'Won', color: 'bg-emerald-100 text-emerald-800' },
+  //{ value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800' }
 ];
 
 const CRMDashboard: React.FC = () => {
@@ -253,30 +254,30 @@ const CRMDashboard: React.FC = () => {
     }
   }, [employeeId, email]);
 
-  // Auto-refresh effect
-  useEffect(() => {
+// Auto-refresh effect
+useEffect(() => {
+  if (autoRefreshTimeoutRef.current) {
+    clearTimeout(autoRefreshTimeoutRef.current);
+  }
+  
+  if (autoRefresh && !isInitialLoading && employeeId && email) {
+    const scheduleNextRefresh = () => {
+      autoRefreshTimeoutRef.current = setTimeout(() => {
+        handleClearCacheAndRefresh().finally(() => {
+          scheduleNextRefresh();
+        });
+      }, refreshInterval * 1000);
+    };
+    
+    scheduleNextRefresh();
+  }
+  
+  return () => {
     if (autoRefreshTimeoutRef.current) {
       clearTimeout(autoRefreshTimeoutRef.current);
     }
-    
-    if (autoRefresh && !isInitialLoading && employeeId && email) {
-      const scheduleNextRefresh = () => {
-        autoRefreshTimeoutRef.current = setTimeout(() => {
-          fetchAllLeads(true).finally(() => {
-            scheduleNextRefresh();
-          });
-        }, refreshInterval * 1000);
-      };
-      
-      scheduleNextRefresh();
-    }
-    
-    return () => {
-      if (autoRefreshTimeoutRef.current) {
-        clearTimeout(autoRefreshTimeoutRef.current);
-      }
-    };
-  }, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
+  };
+}, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
 
   // Calculate summary data - start with 0 for initial state
   const summaryData: SummaryData = useMemo(() => {
@@ -285,6 +286,7 @@ const CRMDashboard: React.FC = () => {
         totalLeads: 0,
         newLeads: 0,
         contactedLeads: 0,
+        followup: 0,
         qualifiedLeads: 0,
         totalValue: 0,
         conversionRate: 0
@@ -295,9 +297,10 @@ const CRMDashboard: React.FC = () => {
       totalLeads: leads.length,
       newLeads: leads.filter(lead => lead.status === 'new').length,
       contactedLeads: leads.filter(lead => lead.status === 'Contacted').length,
+      followup: leads.filter(lead => lead.status === 'followup').length,
       qualifiedLeads: leads.filter(lead => lead.status === 'qualified').length,
       totalValue: leads.reduce((sum, lead) => sum + lead.value, 0),
-      conversionRate: Math.round((leads.filter(lead => ['qualified', 'proposal', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
+      conversionRate: Math.round((leads.filter(lead => ['qualified', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
     };
   }, [leads, isInitialLoading]);
 
@@ -377,7 +380,7 @@ const CRMDashboard: React.FC = () => {
       new: 'bg-blue-100 text-blue-800',
       Contacted: 'bg-purple-100 text-purple-800',
       qualified: 'bg-green-100 text-green-800',
-      proposal: 'bg-yellow-100 text-yellow-800',
+      followup: 'bg-yellow-100 text-yellow-800',
       negotiation: 'bg-orange-100 text-orange-800',
       won: 'bg-emerald-100 text-emerald-800',
       lost: 'bg-red-100 text-red-800'
@@ -389,10 +392,6 @@ const CRMDashboard: React.FC = () => {
     navigate(`/crm/leads/${leadId}`);
   };
 
-  const handleRefresh = async () => {
-    if (!employeeId || !email) return;
-    await fetchAllLeads(false);
-  };
 
   const handleClearCacheAndRefresh = async () => {
     if (!employeeId || !email) return;
@@ -595,7 +594,7 @@ const CRMDashboard: React.FC = () => {
         </div>
 
         {/* Summary Cards */}
-        <SummaryCardsGrid columns={5} className="mb-6">
+        <SummaryCardsGrid columns={6} className="mb-6">
           <SummaryCard
             title="Total Leads" value={summaryData.totalLeads} icon={Users} color="blue" shadowColor="blue" trend={{ value: 12.5, isPositive: true }} showTrend={true} />
           
@@ -605,6 +604,10 @@ const CRMDashboard: React.FC = () => {
           <SummaryCard
             title="Contacted Leads" value={summaryData.contactedLeads} icon={IndianRupee} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
             showTrend={true} prefix="₹" />
+
+          <SummaryCard
+            title="Followup" value={summaryData.followup} icon={IndianRupee} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
+            showTrend={true} prefix="₹" />
           
           <SummaryCard
             title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
@@ -613,7 +616,7 @@ const CRMDashboard: React.FC = () => {
             title="Conversion Rate" value={summaryData.conversionRate} icon={TrendingUp} color="red" shadowColor="red" trend={{ value: 5.7, isPositive: true }}
             showTrend={true} suffix="%" />
         </SummaryCardsGrid>
-
+        
         {/* Filters and Search */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -637,12 +640,9 @@ const CRMDashboard: React.FC = () => {
                 <option value="all">All Status</option>
                 <option value="new">New</option>
                 <option value="Contacted">Contacted</option>
-                <option value="qualified">Qualified</option>
-                <option value="proposal">Proposal</option>
-                <option value="negotiation">Negotiation</option>
-                <option value="won">Won</option>
-                <option value="lost">Lost</option>
-              </select>
+                <option value="followup">followup</option>
+                <option value="qualified">Qualified</option>  
+             </select>
             </div>
 
             <div className="flex gap-2">
@@ -701,7 +701,7 @@ const CRMDashboard: React.FC = () => {
                     onClick={() => handleSort('value')}
                   >
                     <div className="flex items-center gap-2">
-                      Value
+                      Last Modified
                       <ChevronDown 
                         size={16} 
                         className={`text-gray-400 transition-transform ${
@@ -817,12 +817,7 @@ const CRMDashboard: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
-                          <span className="font-semibold text-gray-900">₹{lead.value.toLocaleString()}</span>
-                          {lead.noOfEmployees && (
-                            <div className="text-xs text-gray-500">
-                              Employees: {lead.noOfEmployees}
-                            </div>
-                          )}
+                          <span className="font-semibold text-gray-900">{lead.lastActivity}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -836,7 +831,6 @@ const CRMDashboard: React.FC = () => {
                       <td className="px-6 py-4">
                         <div>
                           <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString('en-GB')}</p>
-                          <p className="text-xs text-gray-500">{lead.lastActivity}</p>
                           {lead.firstRespondedOn && (
                             <p className="text-xs text-gray-400">
                               First response: {new Date(lead.firstRespondedOn).toLocaleDateString()}

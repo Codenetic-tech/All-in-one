@@ -52,7 +52,7 @@ export interface Lead {
   email: string;
   phone: string;
   company: string;
-  status: 'new' | 'Contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+  status: 'new' | 'Contacted' | 'qualified' | 'followup' | 'negotiation' | 'won' | 'lost';
   source: string;
   value: number;
   createdAt: string;
@@ -98,7 +98,7 @@ const mapApiStatus = (apiStatus: string): Lead['status'] => {
     'New': 'new',
     'Contacted': 'Contacted',
     'Qualified': 'qualified',
-    'Proposal': 'proposal',
+    'Followup': 'followup',
     'Negotiation': 'negotiation',
     'Won': 'won',
     'Lost': 'lost',

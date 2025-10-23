@@ -6,8 +6,8 @@ export interface SummaryCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
-  color?: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'indigo' | 'teal' | 'pink';
-  shadowColor?: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'indigo' | 'teal' | 'pink' | 'gray';
+  color?: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'indigo' | 'teal' | 'pink' | 'yellow';
+  shadowColor?: 'blue' | 'green' | 'orange' | 'purple' | 'red' | 'indigo' | 'teal' | 'pink' | 'gray' | 'yellow';
   trend?: {
     value: number;
     isPositive: boolean;
@@ -67,6 +67,12 @@ const colorClasses = {
     trendBg: 'bg-pink-100',
     trendText: 'text-pink-600',
     hoverGradient: 'hover:from-pink-500 hover:to-pink-600',
+  },
+  yellow: {
+    iconBg: 'bg-yellow-500',
+    trendBg: 'bg-yellow-100',
+    trendText: 'text-yellow-600',
+    hoverGradient: 'hover:from-yellow-500 hover:to-yellow-600',
   }
 };
 
@@ -79,7 +85,8 @@ const shadowClasses = {
   indigo: 'shadow-lg shadow-indigo-100 hover:shadow-indigo-500/40',
   teal: 'shadow-lg shadow-teal-100 hover:shadow-teal-500/40',
   pink: 'shadow-lg shadow-pink-100 hover:shadow-pink-500/40',
-  gray: 'shadow-lg shadow-gray-100 hover:shadow-gray-500/40'
+  gray: 'shadow-lg shadow-gray-100 hover:shadow-gray-500/40',
+  yellow: 'shadow-lg shadow-yellow-100 hover:shadow-yellow-500/40'
 };
 
 export const SummaryCard: React.FC<SummaryCardProps> = ({
