@@ -6,7 +6,9 @@ import {
   Building2, User, MailIcon, PhoneIcon, MessageCircle,
   Activity, CheckSquare, FileText, ArrowUpRight, ArrowDownRight,
   IndianRupee, RefreshCw, TrendingUp, Check,
-  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Wifi, WifiOff
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Wifi, WifiOff,
+  BookText,
+  CalendarCheck
 } from 'lucide-react';
 
 // Import the actual useAuth hook and fetchLeads function
@@ -602,11 +604,11 @@ useEffect(() => {
             title="New Leads" value={summaryData.newLeads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} />
           
           <SummaryCard
-            title="Contacted Leads" value={summaryData.contactedLeads} icon={IndianRupee} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
+            title="Contacted Leads" value={summaryData.contactedLeads} icon={BookText} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
             showTrend={true} prefix="₹" />
 
           <SummaryCard
-            title="Followup" value={summaryData.followup} icon={IndianRupee} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
+            title="Followup" value={summaryData.followup} icon={CalendarCheck} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
             showTrend={true} prefix="₹" />
           
           <SummaryCard
