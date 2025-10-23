@@ -13,6 +13,7 @@ import LoginForm from './components/Auth/LoginForm';
 import { Sparkles } from 'lucide-react';
 import Incentive from './components/management';
 import Tickets from './components/tickets';
+import Clients from './components/Clients';
 
 const queryClient = new QueryClient();
 
@@ -104,7 +105,7 @@ const AppContent = () => {
           path="/client" 
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Clients />
             </ProtectedRoute>
           } 
         />

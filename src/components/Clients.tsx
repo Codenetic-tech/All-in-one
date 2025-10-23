@@ -22,9 +22,11 @@ interface SummaryData {
   newLeads: number;
   contactedLeads: number;
   followup: number;
+  wonleads?: number;
   qualifiedLeads: number;
   totalValue: number;
   conversionRate: number;
+  firstTradedClients: number;
 }
 
 const statusOptions = [
@@ -33,18 +35,18 @@ const statusOptions = [
   { value: 'followup', label: 'Followup', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-800' },
   //{ value: 'negotiation', label: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
-  //{ value: 'won', label: 'Won', color: 'bg-emerald-100 text-emerald-800' },
+  { value: 'won', label: 'Won', color: 'bg-emerald-100 text-emerald-800' },
   //{ value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800' }
 ];
 
-const CRMDashboard: React.FC = () => {
+const Clients: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Get actual user from auth context
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('won');
   const [sortConfig, setSortConfig] = useState<{ key: keyof Lead; direction: 'asc' | 'desc' }>({ 
     key: 'createdAt', 
     direction: 'desc' 
@@ -290,8 +292,10 @@ useEffect(() => {
         contactedLeads: 0,
         followup: 0,
         qualifiedLeads: 0,
+        wonleads: 0,
         totalValue: 0,
-        conversionRate: 0
+        conversionRate: 0,
+        firstTradedClients: 0
       };
     }
 
@@ -300,8 +304,10 @@ useEffect(() => {
       newLeads: leads.filter(lead => lead.status === 'new').length,
       contactedLeads: leads.filter(lead => lead.status === 'Contacted').length,
       followup: leads.filter(lead => lead.status === 'followup').length,
+      wonleads: leads.filter(lead => lead.status === 'won').length,
       qualifiedLeads: leads.filter(lead => lead.status === 'qualified').length,
       totalValue: leads.reduce((sum, lead) => sum + lead.value, 0),
+      firstTradedClients: leads.filter(lead => lead.tradeDone === "TRUE").length,
       conversionRate: Math.round((leads.filter(lead => ['qualified', 'negotiation', 'won'].includes(lead.status)).length / Math.max(leads.length, 1)) * 100)
     };
   }, [leads, isInitialLoading]);
@@ -309,11 +315,6 @@ useEffect(() => {
   // Filter and sort leads
   useEffect(() => {
     let result = leads;
-
-    // First filter out unwanted statuses
-    result = result.filter(lead => 
-      ['new', 'Contacted', 'qualified', 'followup'].includes(lead.status)
-    );
 
     if (searchTerm) {
       result = result.filter(lead =>
@@ -601,23 +602,27 @@ useEffect(() => {
         </div>
 
         {/* Summary Cards */}
-        <SummaryCardsGrid columns={5} className="mb-6">
+        <SummaryCardsGrid columns={6} className="mb-6">
           <SummaryCard
             title="Total Leads" value={summaryData.totalLeads} icon={Users} color="blue" shadowColor="blue" trend={{ value: 12.5, isPositive: true }} showTrend={true} />
           
           <SummaryCard
-            title="New Leads" value={summaryData.newLeads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} />
+            title="Total Converted Leads" value={summaryData.wonleads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} />
           
           <SummaryCard
-            title="Contacted Leads" value={summaryData.contactedLeads} icon={BookText} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} prefix="₹" />
+            title="First Traded Clients" value={summaryData.firstTradedClients} icon={BookText} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
+            showTrend={true}/>
 
           <SummaryCard
-            title="Followup" value={summaryData.followup} icon={CalendarCheck} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} prefix="₹" />
+            title="Payin Done Clients" value={summaryData.followup} icon={CalendarCheck} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
+            showTrend={true}/>
           
           <SummaryCard
             title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
+          
+          <SummaryCard
+            title="Conversion Rate" value={summaryData.conversionRate} icon={TrendingUp} color="red" shadowColor="red" trend={{ value: 5.7, isPositive: true }}
+            showTrend={true} suffix="%" />
         </SummaryCardsGrid>
         
         {/* Filters and Search */}
@@ -634,18 +639,6 @@ useEffect(() => {
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
-
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Status</option>
-                <option value="new">New</option>
-                <option value="Contacted">Contacted</option>
-                <option value="followup">followup</option>
-                <option value="qualified">Qualified</option>  
-             </select>
             </div>
 
             <div className="flex gap-2">
@@ -681,10 +674,10 @@ useEffect(() => {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Source</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Campaign</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Trade Done</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">UCC</th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Contact</th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">City</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Branch</th>
                   <th 
                     className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('status')}
@@ -713,7 +706,7 @@ useEffect(() => {
                       />
                     </div>
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Assigned To</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">Referred by</th>
                   <th 
                     className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('createdAt')}
@@ -770,23 +763,20 @@ useEffect(() => {
                           </div>
                           <div>
                             <p className="font-medium text-gray-900">{lead.name}</p>
-                            {lead.ucc && (
-                              <p className="text-xs text-gray-400">UCC: {lead.ucc}</p>
-                            )}
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-900">{lead.source}</span>
+                            <span className="text-gray-900">{lead.tradeDone}</span>
                           </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-gray-900">{lead.campaign}</span>
+                            <span className="font-medium text-gray-900">{lead.ucc}</span>
                           </div>
                         </div>
                       </td>
@@ -802,13 +792,8 @@ useEffect(() => {
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
                             <Building2 size={16} className="text-gray-400" />
-                            <span className="text-gray-900">{lead.city}</span>
+                            <span className="text-gray-900">{lead.branchCode}</span>
                           </div>
-                          {lead.branchCode && (
-                            <div className="text-xs text-gray-400">
-                              Branch: {lead.branchCode}
-                            </div>
-                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -824,12 +809,7 @@ useEffect(() => {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-gray-700">{user.firstName}</span>
-                        {lead.referredBy && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Referred by: {lead.referredBy}
-                          </div>
-                        )}
+                        <span className="text-gray-700">{lead.referredBy}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div>
@@ -901,4 +881,4 @@ useEffect(() => {
   );
 };
 
-export default CRMDashboard;
+export default Clients;
