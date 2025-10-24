@@ -99,7 +99,8 @@ const LeadDetailsPage: React.FC = () => {
         body: JSON.stringify({
           source: 'getcomments',
           employeeId: employeeId,
-          email: email
+          email: email,
+          leadid: leadId
         })
       });
 
