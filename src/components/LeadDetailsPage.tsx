@@ -2,16 +2,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Activity, CheckSquare, Mail, MessageCircle, FileText,
+  Activity, CheckSquare, Mail, MessageCircle, FileText, MessageSquare,
   ChevronRight, Home, Building2, MailIcon, PhoneIcon,
   IndianRupee, ArrowUpRight, ArrowDownRight, Send, Paperclip,
   Smile, Calendar, Clock, User, Video, Phone, MoreVertical,
-  Search, Filter, Archive, Trash2, Plus
+  Search, Filter, Archive, Trash2, Plus, RefreshCw
 } from 'lucide-react';
 import { getLeadById, type Lead } from '@/utils/crm';
-import { getCachedLeadDetails } from '@/utils/crmCache';
+import { getCachedLeadDetails, getCachedComments, saveCommentsToCache, type Comment } from '@/utils/crmCache';
 import { useAuth } from '@/contexts/AuthContext';
-
 
 interface Tab {
   id: string;
@@ -58,49 +57,155 @@ const LeadDetailsPage: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [messages, setMessages] = useState(mockWhatsAppMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // New states for comments - ALWAYS DECLARE HOOKS AT THE TOP LEVEL
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [postingComment, setPostingComment] = useState(false);
 
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
   
   const tabs: Tab[] = [
     { id: 'activity', label: 'Activity', icon: Activity },
+    { id: 'comment', label: 'Comments', icon: MessageSquare },
     { id: 'task', label: 'Tasks', icon: CheckSquare },
     { id: 'email', label: 'Email', icon: Mail },
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
     { id: 'form', label: 'Lead Details', icon: FileText }
   ];
 
-  useEffect(() => {
-  const loadLead = async () => {
-    setLoading(true);
+  // Function to fetch comments
+  const fetchComments = async () => {
+    if (!leadId) return;
+    
+    setCommentsLoading(true);
     try {
-      if (leadId) {
-        // First, check if we have the lead in the cache
-        const cachedLead = getCachedLeadDetails(leadId);
-        if (cachedLead) {
-          setLead(cachedLead);
-          setLoading(false);
-          return;
-        }
-
-        // If not in cache, then fetch from API (which will also update the cache)
-        const leadData = await getLeadById(leadId, employeeId, email);
-        setLead(leadData);
+      // Check cache first
+      const cachedComments = getCachedComments(leadId);
+      if (cachedComments) {
+        setComments(cachedComments);
+        setCommentsLoading(false);
+        return;
       }
+
+      // Fetch from API if not in cache
+      const response = await fetch('https://n8n.gopocket.in/webhook/hrms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: 'getcomments',
+          employeeId: employeeId,
+          email: email
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch comments: ${response.status}`);
+      }
+
+      const allComments: Comment[] = await response.json();
+      
+      // Filter comments for this specific lead
+      const leadComments = allComments.filter(comment => 
+        comment.reference_name === leadId
+      );
+      
+      // Sort by creation date (newest first)
+      leadComments.sort((a, b) => new Date(b.creation).getTime() - new Date(a.creation).getTime());
+      
+      setComments(leadComments);
+      saveCommentsToCache(leadId, leadComments);
     } catch (error) {
-      console.error('Error fetching lead:', error);
-      setLead(null);
+      console.error('Error fetching comments:', error);
     } finally {
-      setLoading(false);
+      setCommentsLoading(false);
     }
   };
 
-  loadLead();
-}, [leadId, employeeId, email]);
+  // Function to post a new comment
+  const postComment = async () => {
+    if (!newComment.trim() || !leadId || postingComment) return;
+    
+    setPostingComment(true);
+    try {
+      const response = await fetch('https://n8n.gopocket.in/webhook/hrms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: 'postcomments',
+          employeeId: employeeId,
+          email: email,
+          leadid: leadId,
+          content: newComment.trim()
+        })
+      });
 
+      if (!response.ok) {
+        throw new Error(`Failed to post comment: ${response.status}`);
+      }
+
+      const newCommentData: Comment[] = await response.json();
+      
+      if (newCommentData && newCommentData.length > 0) {
+        // Add the new comment to the list and clear the input
+        const updatedComments = [newCommentData[0], ...comments];
+        setComments(updatedComments);
+        saveCommentsToCache(leadId, updatedComments);
+        setNewComment('');
+      }
+    } catch (error) {
+      console.error('Error posting comment:', error);
+    } finally {
+      setPostingComment(false);
+    }
+  };
+
+  // Load lead data
+  useEffect(() => {
+    const loadLead = async () => {
+      setLoading(true);
+      try {
+        if (leadId) {
+          // First, check if we have the lead in the cache
+          const cachedLead = getCachedLeadDetails(leadId);
+          if (cachedLead) {
+            setLead(cachedLead);
+            setLoading(false);
+            return;
+          }
+
+          // If not in cache, then fetch from API (which will also update the cache)
+          const leadData = await getLeadById(leadId, employeeId, email);
+          setLead(leadData);
+        }
+      } catch (error) {
+        console.error('Error fetching lead:', error);
+        setLead(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadLead();
+  }, [leadId, employeeId, email]);
+
+  // Scroll to bottom for WhatsApp messages
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Fetch comments when Comments tab becomes active
+  useEffect(() => {
+    if (activeTab === 'comment' && leadId) {
+      fetchComments();
+    }
+  }, [activeTab, leadId]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -138,12 +243,28 @@ const LeadDetailsPage: React.FC = () => {
     }
   };
 
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    postComment();
+  };
+
+  const formatCommentDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   const getStatusColor = (status: Lead['status']) => {
     const colors = {
       new: 'bg-blue-100 text-blue-800',
       Contacted: 'bg-purple-100 text-purple-800',
       qualified: 'bg-green-100 text-green-800',
-      proposal: 'bg-yellow-100 text-yellow-800',
+      followup: 'bg-yellow-100 text-yellow-800',
       negotiation: 'bg-orange-100 text-orange-800',
       won: 'bg-emerald-100 text-emerald-800',
       lost: 'bg-red-100 text-red-800'
@@ -316,6 +437,102 @@ const LeadDetailsPage: React.FC = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Comments Tab */}
+          {activeTab === 'comment' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+                {/* Comments Header */}
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">Comments & Notes</h3>
+                    <div className="text-sm text-gray-500">
+                      {comments.length} comment{comments.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                  
+                  {/* Add Comment Form */}
+                  <form onSubmit={handleCommentSubmit} className="space-y-4">
+                    <div>
+                      <label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-2">
+                        Add a Comment
+                      </label>
+                      <textarea
+                        id="comment"
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder="Type your comment here..."
+                        rows={3}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        disabled={postingComment}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={!newComment.trim() || postingComment}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {postingComment ? (
+                          <>
+                            <RefreshCw className="animate-spin h-4 w-4" />
+                            Posting...
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare size={16} />
+                            Post Comment
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Comments List */}
+                <div className="divide-y divide-gray-100">
+                  {commentsLoading ? (
+                    <div className="p-8 text-center">
+                      <RefreshCw className="animate-spin h-8 w-8 text-blue-500 mx-auto mb-4" />
+                      <p className="text-gray-600">Loading comments...</p>
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <MessageSquare className="mx-auto h-12 w-12 text-gray-300 mb-4" />
+                      <p className="text-gray-500">No comments yet</p>
+                      <p className="text-gray-400 text-sm mt-1">Be the first to add a comment</p>
+                    </div>
+                  ) : (
+                    comments.map((comment) => (
+                      <div key={comment.name} className="p-6 hover:bg-gray-50 transition-colors">
+                        <div className="flex gap-4">
+                          <div className="flex-shrink-0">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white text-sm">
+                              {comment.comment_by?.charAt(0) || comment.comment_email?.charAt(0) || 'U'}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <p className="font-medium text-gray-600">
+                                  {comment.comment_by} ({comment.comment_email}) commented
+                                </p>
+                              </div>
+                              <span className="text-sm text-gray-400 whitespace-nowrap">
+                                {formatCommentDate(comment.creation)}
+                              </span>
+                            </div>
+                            
+                            <p className="font-semibold text-black-700 whitespace-pre-wrap">{comment.content}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
