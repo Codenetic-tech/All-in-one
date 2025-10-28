@@ -44,6 +44,7 @@ export interface APILead {
   industry?: string;
   notes?: string;
   campaign?: string;
+  _assign: string;
 }
 
 export interface Lead {
@@ -81,6 +82,7 @@ export interface Lead {
   _isNew?: boolean;
   _isModified?: boolean;
   campaign?: string;
+  _assign: string;
 }
 
 // Import cache functions
@@ -139,7 +141,7 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
     source: apiLead.lead_source || 'Unknown',
     value: apiLead.annual_revenue || 0,
     createdAt: apiLead.creation,
-    assignedTo: apiLead.assigned || apiLead.lead_owner || 'Unassigned',
+    assignedTo: apiLead._assign || apiLead.lead_owner || 'Unassigned',
     lastActivity: getTimeAgo(apiLead.modified),
     industry: apiLead.lead_source || 'General',
     notes: apiLead.issue || 'No notes available',
@@ -160,7 +162,9 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
     communicationStatus: apiLead.communication_status,
     firstResponseTime: apiLead.first_response_time,
     firstRespondedOn: apiLead.first_responded_on,
-    campaign: apiLead.campaign
+    campaign: apiLead.campaign,
+    _assign: apiLead._assign
+
   };
 };
 
@@ -271,3 +275,4 @@ export const updateLeadStatus = (leadId: string, newStatus: Lead['status']): voi
 
 // Re-export cache functions
 export { clearAllCache, getCacheInfo } from '@/utils/crmCache';
+

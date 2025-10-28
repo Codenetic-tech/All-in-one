@@ -16,6 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { fetchLeads, refreshLeads, type Lead, clearAllCache } from '@/utils/crm';
 import { PathBreadcrumb } from './PathBreadcrumb';
 import { SummaryCard, SummaryCardsGrid } from './SummaryCard';
+import { AddLeadDialog } from './AddLeadDialog';
 
 interface SummaryData {
   totalLeads: number;
@@ -256,30 +257,30 @@ const CRMDashboard: React.FC = () => {
     }
   }, [employeeId, email]);
 
-// Auto-refresh effect
-useEffect(() => {
-  if (autoRefreshTimeoutRef.current) {
-    clearTimeout(autoRefreshTimeoutRef.current);
-  }
-  
-  if (autoRefresh && !isInitialLoading && employeeId && email) {
-    const scheduleNextRefresh = () => {
-      autoRefreshTimeoutRef.current = setTimeout(() => {
-        handleClearCacheAndRefresh().finally(() => {
-          scheduleNextRefresh();
-        });
-      }, refreshInterval * 1000);
-    };
-    
-    scheduleNextRefresh();
-  }
-  
-  return () => {
+  // Auto-refresh effect
+  useEffect(() => {
     if (autoRefreshTimeoutRef.current) {
       clearTimeout(autoRefreshTimeoutRef.current);
     }
-  };
-}, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
+    
+    if (autoRefresh && !isInitialLoading && employeeId && email) {
+      const scheduleNextRefresh = () => {
+        autoRefreshTimeoutRef.current = setTimeout(() => {
+          handleClearCacheAndRefresh().finally(() => {
+            scheduleNextRefresh();
+          });
+        }, refreshInterval * 1000);
+      };
+      
+      scheduleNextRefresh();
+    }
+    
+    return () => {
+      if (autoRefreshTimeoutRef.current) {
+        clearTimeout(autoRefreshTimeoutRef.current);
+      }
+    };
+  }, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
 
   // Calculate summary data - start with 0 for initial state
   const summaryData: SummaryData = useMemo(() => {
@@ -399,7 +400,6 @@ useEffect(() => {
     navigate(`/crm/leads/${leadId}`);
   };
 
-
   const handleClearCacheAndRefresh = async () => {
     if (!employeeId || !email) return;
     
@@ -407,6 +407,11 @@ useEffect(() => {
     clearAllCache();
     await refreshLeads(employeeId, email);
     await fetchAllLeads(false);
+  };
+
+  const handleLeadAdded = () => {
+    // Refresh the leads list after adding a new lead
+    handleClearCacheAndRefresh();
   };
 
   const toggleDropdown = (leadId: string, e: React.MouseEvent) => {
@@ -582,10 +587,7 @@ useEffect(() => {
               <RefreshCw size={18} className={isInitialLoading || isAutoRefreshing ? 'animate-spin' : ''} />
               Refresh
             </button>
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors">
-              <Plus size={20} />
-              Add New Lead
-            </button>
+            <AddLeadDialog onLeadAdded={handleLeadAdded} />
           </div>
         </div>
 
@@ -610,11 +612,11 @@ useEffect(() => {
           
           <SummaryCard
             title="Contacted Leads" value={summaryData.contactedLeads} icon={BookText} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} prefix="₹" />
+            showTrend={true} />
 
           <SummaryCard
             title="Followup" value={summaryData.followup} icon={CalendarCheck} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} prefix="₹" />
+            showTrend={true} />
           
           <SummaryCard
             title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
@@ -823,14 +825,34 @@ useEffect(() => {
                           <span className="font-semibold text-gray-900">{lead.lastActivity}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-gray-700">{user.firstName}</span>
-                        {lead.referredBy && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            Referred by: {lead.referredBy}
-                          </div>
-                        )}
-                      </td>
+                     <td className="px-6 py-4">
+                      <div className="flex -space-x-2">
+                        {JSON.parse(lead._assign || "[]")
+                          .filter(
+                            (user) =>
+                              user !== "gokul.krishna.687@gopocket.in"
+                          )
+                          .map((user, index) => {
+                            const firstLetter = user.charAt(0).toUpperCase();
+                            return (
+                              <div key={index} className="relative group">
+                                {/* Circle with first letter */}
+                                <div
+                                  className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-500 text-white text-sm font-semibold border-2 border-white cursor-pointer"
+                                  title={user}
+                                >
+                                  {firstLetter}
+                                </div>
+
+                                {/* Tooltip on hover */}
+                                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg z-10">
+                                  {user}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </td>
                       <td className="px-6 py-4">
                         <div>
                           <p className="text-sm text-gray-900">{new Date(lead.createdAt).toLocaleDateString('en-GB')}</p>
