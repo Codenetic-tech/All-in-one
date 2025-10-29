@@ -1,7 +1,7 @@
 // pages/CRMAnalyticsDashboard.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Users, User, BookText, CalendarCheck, CheckSquare, TrendingUp, BarChart3, Activity, RefreshCw, Wifi, WifiOff, Phone, Mail, MessageCircle, Filter, Download } from 'lucide-react';
+import { Users, User, BookText, CalendarCheck, CheckSquare, TrendingUp, BarChart3, Activity, RefreshCw, Wifi, WifiOff, Download, Filter } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLeads, refreshLeads, type Lead, clearAllCache } from '@/utils/crm';
 import { Calendar } from '@/components/ui/calendar';
@@ -235,7 +235,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-4">
         <div className="flex-1">
@@ -304,457 +304,366 @@ const CRMAnalyticsDashboard: React.FC = () => {
 
       {/* Charts Row - Only show when data is loaded and has leads */}
       {!isInitialLoading && Array.isArray(leads) && leads.length > 0 && (
-        <>
-          {/* First Row - Main Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            {/* First Column: Lead Status Distribution Pie Chart */}
-            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">Lead Status Distribution</h3>
-                  <p className="text-xs text-gray-500">Breakdown of leads by current status</p>
-                </div>
-                <div className="bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-                  <span className="text-xs font-semibold text-blue-700">
-                    {statusDistribution.length} Statuses
-                  </span>
-                </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* First Column: Lead Status Distribution Pie Chart */}
+          <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Lead Status Distribution</h3>
+                <p className="text-sm text-gray-500">Breakdown of leads by current status</p>
               </div>
-
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={340}>
-                  <PieChart>
-                    <Pie
-                      data={statusDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="60%"
-                      outerRadius="80%"
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, percent }) => 
-                        percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''
-                      }
-                      labelLine={false}
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                    >
-                      {statusDistribution.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={statusColors[index % statusColors.length]}
-                          stroke="#ffffff"
-                          strokeWidth={2}
-                          className="hover:opacity-80 cursor-pointer transition-opacity duration-200"
-                        />
-                      ))}
-                    </Pie>
-
-                    <text 
-                      x="50%" 
-                      y="45%" 
-                      textAnchor="middle" 
-                      className="text-xl font-bold fill-gray-900"
-                    >
-                      {summaryData.totalLeads}
-                    </text>
-                    <text 
-                      x="50%" 
-                      y="55%" 
-                      textAnchor="middle" 
-                      className="text-xs fill-gray-500"
-                    >
-                      Total Leads
-                    </text>
-
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #2b2b2bff',
-                        borderRadius: '0.75rem',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                        padding: '0.3rem'
-                      }}
-                      itemStyle={{
-                        color: '#1f2937',
-                        fontSize: '0.875rem',
-                        fontWeight: '500'
-                      }}
-                      labelStyle={{
-                        color: '#111827',
-                        fontSize: '0.875rem',
-                        fontWeight: '600'
-                      }}
-                      formatter={(value, name, props) => {
-                        const percentage = ((Number(value) / summaryData.totalLeads) * 100).toFixed(1);
-                        return [
-                          <div key="value" className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: props.color }}
-                            />
-                            <span className="font-semibold text-gray-900">
-                              {name} : {value} leads
-                            </span>
-                          </div>,
-                          <div key="percentage" className="text-blue-600 font-semibold">
-                            {percentage}%
-                          </div>
-                        ];
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-center mt-4 pt-4 border-t border-gray-100">
-                {statusDistribution.map((entry, index) => {
-                  const percentage = ((entry.value / summaryData.totalLeads) * 100).toFixed(1);
-                  
-                  return (
-                    <div 
-                      key={index}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
-                    >
-                      <div 
-                        className="w-2 h-2 rounded-full" 
-                        style={{ backgroundColor: statusColors[index % statusColors.length] }}
-                      />
-                      <span className="text-xs font-medium text-gray-700">{entry.name}</span>
-                      <span className="text-xs text-gray-500 font-medium">({percentage}%)</span>
-                    </div>
-                  );
-                })}
+              <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                <span className="text-sm font-semibold text-blue-700">
+                  {statusDistribution.length} Statuses
+                </span>
               </div>
             </div>
+
+            <div className="relative">
+              <ResponsiveContainer width="100%" height={400}>
+                <PieChart>
+                  <Pie
+                    data={statusDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="60%"
+                    outerRadius="80%"
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                    label={({ name, percent }) => 
+                      percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''
+                    }
+                    labelLine={false}
+                    stroke="#ffffff"
+                    strokeWidth={2}
+                  >
+                    {statusDistribution.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={statusColors[index % statusColors.length]}
+                        stroke="#ffffff"
+                        strokeWidth={2}
+                        className="hover:opacity-80 cursor-pointer transition-opacity duration-200"
+                      />
+                    ))}
+                  </Pie>
+
+                  <text 
+                    x="50%" 
+                    y="45%" 
+                    textAnchor="middle" 
+                    className="text-2xl font-bold fill-gray-900"
+                  >
+                    {summaryData.totalLeads}
+                  </text>
+                  <text 
+                    x="50%" 
+                    y="55%" 
+                    textAnchor="middle" 
+                    className="text-sm fill-gray-500"
+                  >
+                    Total Leads
+                  </text>
+
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #ffffffff',
+                      borderRadius: '0.75rem',
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                      padding: '0.3rem'
+                    }}
+                    itemStyle={{
+                      color: '#1f2937',
+                      fontSize: '0.875rem',
+                      fontWeight: '500'
+                    }}
+                    labelStyle={{
+                      color: '#111827',
+                      fontSize: '0.875rem',
+                      fontWeight: '600'
+                    }}
+                    formatter={(value, name, props) => {
+                      const percentage = ((Number(value) / summaryData.totalLeads) * 100).toFixed(1);
+                      return [
+                        <div key="value" className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: props.color }}
+                          />
+                          <span className="font-semibold text-gray-900">
+                            {name} : {value} leads
+                          </span>
+                        </div>,
+                        <div key="percentage" className="text-blue-600 font-semibold">
+                          {percentage}%
+                        </div>
+                      ];
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex flex-wrap gap-3 justify-center mt-6 pt-6 border-t border-gray-100">
+              {statusDistribution.map((entry, index) => {
+                const percentage = ((entry.value / summaryData.totalLeads) * 100).toFixed(1);
+                
+                return (
+                  <div 
+                    key={index}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
+                  >
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: statusColors[index % statusColors.length] }}
+                    />
+                    <span className="text-sm font-medium text-gray-700">{entry.name}</span>
+                    <span className="text-sm text-gray-500 font-medium">({percentage}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
               
-            {/* Second Column: Stacked Charts - Lead Performance and Lead Source Distribution */}
-            <div className="flex flex-col gap-4">
-              {/* Lead Performance Bar Chart */}
-              <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300 flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-                      Lead Performance
-                    </h3>
-                    <p className="text-xs text-gray-500">Leads distribution across status categories</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className="bg-blue-50 px-2 py-1 rounded-full border border-blue-200">
-                      <span className="text-xs font-semibold text-blue-700 flex items-center gap-1">
-                        <BarChart3 size={12} />
-                        Metrics
-                      </span>
-                    </div>
-                  </div>
+          {/* Second Column: Stacked Charts - Lead Performance and Lead Source Distribution */}
+          <div className="flex flex-col gap-6">
+            {/* Lead Performance Bar Chart */}
+            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 flex-1">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    Lead Performance
+                  </h3>
+                  <p className="text-sm text-gray-500">Leads distribution across status categories</p>
                 </div>
-
-                <ResponsiveContainer width="100%" height={140}>
-                  <BarChart data={performanceChartData} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid 
-                      strokeDasharray="3 3" 
-                      stroke="#f3f4f6" 
-                      vertical={false}
-                    />
-                    
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#9ca3af"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
-                    />
-                    
-                    <YAxis 
-                      stroke="#9ca3af"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
-                      tickFormatter={(value) => value > 1000 ? `${(value / 1000).toFixed(0)}K` : value.toString()}
-                    />
-                    
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '0.75rem',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                        padding: '0.5rem'
-                      }}
-                      formatter={(value, name) => {
-                        const formattedValue = value.toLocaleString();
-                        
-                        return [
-                          <div key={name} className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: '#3b82f6' }}
-                            />
-                            <span className="font-semibold text-gray-900 text-sm">{formattedValue} leads</span>
-                          </div>,
-                          'Count'
-                        ];
-                      }}
-                    />
-                    
-                    <Bar 
-                      dataKey="leads" 
-                      name="leads"
-                      fill="#3b82f6"
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={30}
-                      label={renderCustomBarLabel}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-
-                <div className="flex flex-wrap gap-3 justify-center mt-4 pt-3 border-t border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span className="text-xs font-medium text-gray-700">Leads Count</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <span className="text-xs font-medium text-gray-700">Conversion: {summaryData.conversionRate}%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Lead Source Distribution */}
-              <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300 flex-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">Lead Source Distribution</h3>
-                    <p className="text-xs text-gray-500">Breakdown of leads by acquisition source</p>
-                  </div>
-                  <div className="bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-                    <span className="text-xs font-semibold text-blue-700">
-                      {sourceDistribution.length} Sources
+                <div className="flex gap-2">
+                  <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                    <span className="text-xs font-semibold text-blue-700 flex items-center gap-1">
+                      <BarChart3 size={14} />
+                      Metrics
                     </span>
                   </div>
                 </div>
+              </div>
 
-                <ResponsiveContainer width="100%" height={140}>
-                  <BarChart data={sourceDistribution} margin={{ top: 15, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid 
-                      strokeDasharray="3 3" 
-                      stroke="#f3f4f6" 
-                      vertical={false}
-                    />
-                    
-                    <XAxis 
-                      dataKey="name" 
-                      stroke="#9ca3af"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    
-                    <YAxis 
-                      stroke="#9ca3af"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={{ stroke: '#e5e7eb' }}
-                    />
-                    
-                    <Tooltip 
-                      contentStyle={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        backdropFilter: 'blur(10px)',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '0.75rem',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                        padding: '0.5rem'
-                      }}
-                      formatter={(value, name, props) => {
-                        const percentage = ((Number(value) / summaryData.totalLeads) * 100).toFixed(1);
-                        return [
-                          <div key="value" className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: sourceColors[props.payload.index % sourceColors.length] }}
-                            />
-                            <span className="font-semibold text-gray-900 text-sm">
-                              {value} leads
-                            </span>
-                          </div>,
-                          <div key="percentage" className="text-blue-600 font-semibold text-sm">
-                            {percentage}%
-                          </div>
-                        ];
-                      }}
-                    />
-                    
-                    <Bar 
-                      dataKey="count" 
-                      name="leads"
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={30}
-                    >
-                      {sourceDistribution.map((entry, index) => (
-                        <Cell 
-                          key={`cell-${index}`} 
-                          fill={sourceColors[index % sourceColors.length]}
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={performanceChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="#f3f4f6" 
+                    vertical={false}
+                  />
+                  
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  
+                  <YAxis 
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                    tickFormatter={(value) => value > 1000 ? `${(value / 1000).toFixed(0)}K` : value.toString()}
+                  />
+                  
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.75rem',
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                      padding: '0.75rem'
+                    }}
+                    formatter={(value, name) => {
+                      const formattedValue = value.toLocaleString();
+                      
+                      return [
+                        <div key={name} className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: '#3b82f6' }}
+                          />
+                          <span className="font-semibold text-gray-900">{formattedValue} leads</span>
+                        </div>,
+                        'Count'
+                      ];
+                    }}
+                  />
+                  
+                  <Legend 
+                    verticalAlign="top"
+                    height={36}
+                    iconSize={10}
+                    iconType="circle"
+                    formatter={(value) => (
+                      <span className="text-xs font-medium text-gray-700 capitalize">{value}</span>
+                    )}
+                    wrapperStyle={{
+                      paddingBottom: '1rem'
+                    }}
+                  />
+                  
+                  <Bar 
+                    dataKey="leads" 
+                    name="leads"
+                    fill="#3b82f6"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={40}
+                    label={renderCustomBarLabel}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+
+              <div className="flex flex-wrap gap-4 justify-center mt-6 pt-6 border-t border-gray-100">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500" />
+                  <span className="text-sm font-medium text-gray-700">Leads Count</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <span className="text-sm font-medium text-gray-700">Conversion Rate: {summaryData.conversionRate}%</span>
+                </div>
               </div>
             </div>
 
-            {/* Third Column: Calendar */}
-            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
+            {/* Lead Source Distribution */}
+            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 flex-1">
+              <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">Calendar</h3>
-                  <p className="text-xs text-gray-500">Schedule and track activities</p>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Lead Source Distribution</h3>
+                  <p className="text-sm text-gray-500">Breakdown of leads by acquisition source</p>
                 </div>
-                <div className="bg-blue-50 px-2 py-1 rounded-full border border-blue-100">
-                  <span className="text-xs font-semibold text-blue-700">
-                    Today
+                <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                  <span className="text-sm font-semibold text-blue-700">
+                    {sourceDistribution.length} Sources
                   </span>
                 </div>
               </div>
-              
-              <div className="flex justify-center scale-90 origin-top">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  className="rounded-md border"
-                />
+
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={sourceDistribution} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid 
+                    strokeDasharray="3 3" 
+                    stroke="#f3f4f6" 
+                    vertical={false}
+                  />
+                  
+                  <XAxis 
+                    dataKey="name" 
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  
+                  <YAxis 
+                    stroke="#9ca3af"
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={{ stroke: '#e5e7eb' }}
+                  />
+                  
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      backdropFilter: 'blur(10px)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.75rem',
+                      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                      padding: '0.75rem'
+                    }}
+                    formatter={(value, name, props) => {
+                      const percentage = ((Number(value) / summaryData.totalLeads) * 100).toFixed(1);
+                      return [
+                        <div key="value" className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: sourceColors[props.payload.index % sourceColors.length] }}
+                          />
+                          <span className="font-semibold text-gray-900">
+                            {value} leads
+                          </span>
+                        </div>,
+                        <div key="percentage" className="text-blue-600 font-semibold">
+                          {percentage}%
+                        </div>
+                      ];
+                    }}
+                  />
+                  
+                  <Bar 
+                    dataKey="count" 
+                    name="leads"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={40}
+                  >
+                    {sourceDistribution.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={sourceColors[index % sourceColors.length]}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Third Column: Calendar */}
+          <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Calendar</h3>
+                <p className="text-sm text-gray-500">Schedule and track activities</p>
               </div>
-              
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Upcoming Activities</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                    <span className="text-xs text-gray-700">Team Meeting</span>
-                    <span className="text-xs text-gray-500 ml-auto">10:00 AM</span>
-                  </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                    <span className="text-xs text-gray-700">Client Call</span>
-                    <span className="text-xs text-gray-500 ml-auto">2:30 PM</span>
-                  </div>
-                  <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50">
-                    <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
-                    <span className="text-xs text-gray-700">Follow-up</span>
-                    <span className="text-xs text-gray-500 ml-auto">4:00 PM</span>
-                  </div>
+              <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                <span className="text-sm font-semibold text-blue-700">
+                  Today
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex justify-center">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                className="rounded-md border"
+              />
+            </div>
+            
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">Upcoming Activities</h4>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-50">
+                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                  <span className="text-sm text-gray-700">Team Meeting</span>
+                  <span className="text-xs text-gray-500 ml-auto">10:00 AM</span>
+                </div>
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-green-50">
+                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                  <span className="text-sm text-gray-700">Client Call</span>
+                  <span className="text-xs text-gray-500 ml-auto">2:30 PM</span>
+                </div>
+                <div className="flex items-center gap-3 p-2 rounded-lg bg-orange-50">
+                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
+                  <span className="text-sm text-gray-700">Follow-up</span>
+                  <span className="text-xs text-gray-500 ml-auto">4:00 PM</span>
                 </div>
               </div>
             </div>
           </div>
-
-          {/* Second Row - Additional Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            {/* Activity Summary Card */}
-            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Activity Summary</h3>
-                <Activity className="h-5 w-5 text-blue-500" />
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Calls Made</span>
-                  <span className="text-sm font-semibold text-gray-900">24</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Emails Sent</span>
-                  <span className="text-sm font-semibold text-gray-900">42</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Meetings Scheduled</span>
-                  <span className="text-sm font-semibold text-gray-900">8</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600">Tasks Completed</span>
-                  <span className="text-sm font-semibold text-gray-900">15</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions Card */}
-            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Quick Actions</h3>
-                <CheckSquare className="h-5 w-5 text-green-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button className="flex flex-col items-center justify-center p-3 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
-                  <Phone className="h-5 w-5 text-blue-600 mb-1" />
-                  <span className="text-xs font-medium text-gray-700">New Call</span>
-                </button>
-                <button className="flex flex-col items-center justify-center p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
-                  <Mail className="h-5 w-5 text-green-600 mb-1" />
-                  <span className="text-xs font-medium text-gray-700">Send Email</span>
-                </button>
-                <button className="flex flex-col items-center justify-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-                  <MessageCircle className="h-5 w-5 text-purple-600 mb-1" />
-                  <span className="text-xs font-medium text-gray-700">SMS</span>
-                </button>
-                <button className="flex flex-col items-center justify-center p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
-                  <CalendarCheck className="h-5 w-5 text-orange-600 mb-1" />
-                  <span className="text-xs font-medium text-gray-700">Schedule</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Performance Metrics Card */}
-            <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-4 border border-gray-100 hover:shadow-2xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Performance Metrics</h3>
-                <TrendingUp className="h-5 w-5 text-green-500" />
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-600">Response Rate</span>
-                    <span className="text-sm font-semibold text-gray-900">68%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{ width: '68%' }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-600">Conversion Rate</span>
-                    <span className="text-sm font-semibold text-gray-900">{summaryData.conversionRate}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-green-600 h-2 rounded-full" style={{ width: `${summaryData.conversionRate}%` }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-600">Follow-up Rate</span>
-                    <span className="text-sm font-semibold text-gray-900">45%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-purple-600 h-2 rounded-full" style={{ width: '45%' }}></div>
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm text-gray-600">Task Completion</span>
-                    <span className="text-sm font-semibold text-gray-900">82%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-orange-600 h-2 rounded-full" style={{ width: '82%' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
+        </div>
       )}
 
       {/* Loading State */}
