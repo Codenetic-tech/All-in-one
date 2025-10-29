@@ -14,6 +14,7 @@ import { Sparkles } from 'lucide-react';
 import Incentive from './components/management';
 import Tickets from './components/tickets';
 import Clients from './components/Clients';
+import CRMAnalyticsDashboard from './components/CRM/CRMAnalyticsDashboard';
 
 const queryClient = new QueryClient();
 
@@ -70,7 +71,7 @@ const AppContent = () => {
           path="/dashboard" 
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <CRMAnalyticsDashboard />
             </ProtectedRoute>
           } 
         />

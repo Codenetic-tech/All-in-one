@@ -744,7 +744,7 @@ const CRMDashboard: React.FC = () => {
         <BulkActionsBar />
         
         {/* Filters and Search */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
               <div className="relative flex-1">
@@ -798,7 +798,6 @@ const CRMDashboard: React.FC = () => {
                         onChange={toggleSelectAll}
                         className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
                       />
-                      Select
                     </div>
                   </th>
                   <th 

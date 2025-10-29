@@ -42,7 +42,7 @@ import { toast } from '@/hooks/use-toast';
 const allMenuItems = [
     {
     title: 'Dashboard',
-    url: '/realtime',
+    url: '/dashboard',
     icon: LayoutDashboard,
     color: 'text-purple-500',
     bgColor: 'bg-purple-50',
