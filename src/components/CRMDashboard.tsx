@@ -33,9 +33,6 @@ const statusOptions = [
   { value: 'Contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-800' },
   { value: 'followup', label: 'Followup', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-800' },
-  //{ value: 'negotiation', label: 'Negotiation', color: 'bg-orange-100 text-orange-800' },
-  //{ value: 'won', label: 'Won', color: 'bg-emerald-100 text-emerald-800' },
-  //{ value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800' }
 ];
 
 const CRMDashboard: React.FC = () => {
@@ -63,6 +60,11 @@ const CRMDashboard: React.FC = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isChangingStatus, setIsChangingStatus] = useState<string | null>(null);
 
+  // Bulk action state
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [selectedTeamMember, setSelectedTeamMember] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -74,6 +76,7 @@ const CRMDashboard: React.FC = () => {
   // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
+  const teamMembers = user?.team ? JSON.parse(user.team) : [];
 
   // Function to change lead status
   const changeLeadStatus = async (leadId: string, newStatus: string, leadName: string) => {
@@ -125,7 +128,119 @@ const CRMDashboard: React.FC = () => {
       // You might want to show a toast notification here instead
     } finally {
       setIsChangingStatus(null);
+      handleClearCacheAndRefresh();
     }
+  };
+
+  // Bulk action functions
+  const toggleLeadSelection = (leadId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedLeads(prev => 
+      prev.includes(leadId) 
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLeads.length === currentLeads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(currentLeads.map(lead => lead.id));
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (!selectedTeamMember || selectedLeads.length === 0) return;
+    
+    setIsAssigning(true);
+    try {
+      const response = await fetch('https://n8n.gopocket.in/webhook/hrms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          doctype: "CRM Lead",
+          name: JSON.stringify(selectedLeads),
+          assign_to: [selectedTeamMember],
+          bulk_assign: true,
+          re_assign: true
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Bulk assign response:', result);
+
+      // Clear selection and close bulk actions
+      setSelectedLeads([]);
+      setSelectedTeamMember('');
+
+      // Refresh leads to show updated assignments
+      handleClearCacheAndRefresh();
+
+    } catch (error: any) {
+      console.error('Error in bulk assignment:', error);
+      setError(`Failed to assign leads: ${error.message}`);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  // Bulk Actions Bar Component
+  const BulkActionsBar = () => {
+    if (selectedLeads.length === 0) return null;
+
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="text-blue-800 font-medium">
+              {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
+            </span>
+            
+            <select
+              value={selectedTeamMember}
+              onChange={(e) => setSelectedTeamMember(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">Select team member</option>
+              {teamMembers.map((member: string) => (
+                <option key={member} value={member}>
+                  {member}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleBulkAssign}
+              disabled={!selectedTeamMember || isAssigning}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isAssigning ? (
+                <RefreshCw size={16} className="animate-spin" />
+              ) : (
+                <Users size={16} />
+              )}
+              Assign Selected
+            </button>
+          </div>
+
+          <button
+            onClick={() => setSelectedLeads([])}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            Clear selection
+          </button>
+        </div>
+      </div>
+    );
   };
 
   // Fetch all leads using the actual fetchLeads function
@@ -397,7 +512,10 @@ const CRMDashboard: React.FC = () => {
   };
 
   const handleLeadClick = (leadId: string) => {
-    navigate(`/crm/leads/${leadId}`);
+    // Don't navigate if user was selecting leads
+    if (selectedLeads.length === 0) {
+      navigate(`/crm/leads/${leadId}`);
+    }
   };
 
   const handleClearCacheAndRefresh = async () => {
@@ -622,6 +740,9 @@ const CRMDashboard: React.FC = () => {
             title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
         </SummaryCardsGrid>
         
+        {/* Bulk Actions Bar */}
+        <BulkActionsBar />
+        
         {/* Filters and Search */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
@@ -669,6 +790,17 @@ const CRMDashboard: React.FC = () => {
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedLeads.length === currentLeads.length && currentLeads.length > 0}
+                        onChange={toggleSelectAll}
+                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      Select
+                    </div>
+                  </th>
                   <th 
                     className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort('name')}
@@ -736,21 +868,21 @@ const CRMDashboard: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {isInitialLoading ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12">
+                    <td colSpan={10} className="text-center py-12">
                       <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-500 mb-4" />
                       <p className="text-gray-600">Loading leads from API...</p>
                     </td>
                   </tr>
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12">
+                    <td colSpan={10} className="text-center py-12">
                       <div className="text-gray-400 mb-2">No leads available</div>
                       <p className="text-gray-600">Start by adding your first lead</p>
                     </td>
                   </tr>
                 ) : filteredLeads.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12">
+                    <td colSpan={10} className="text-center py-12">
                       <div className="text-gray-400 mb-2">No matching records found</div>
                       <p className="text-gray-600">Try adjusting your search or filters</p>
                     </td>
@@ -765,6 +897,18 @@ const CRMDashboard: React.FC = () => {
                       }`}
                       onClick={() => handleLeadClick(lead.id)}
                     >
+                      <td 
+                        className="px-6 py-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedLeads.includes(lead.id)}
+                          onChange={() => toggleLeadSelection(lead.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">

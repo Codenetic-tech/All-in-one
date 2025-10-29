@@ -14,6 +14,7 @@ export interface User {
   employeeId: string;
   token: string;
   path: string;
+  team: string;
 }
 
 export interface Company {

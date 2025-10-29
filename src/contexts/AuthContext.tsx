@@ -207,7 +207,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         token: loginData.token,
-        path: loginData.path
+        path: loginData.path,
+        team: loginData.team
       };
 
       // Create company data
