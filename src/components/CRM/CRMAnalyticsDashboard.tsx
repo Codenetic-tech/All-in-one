@@ -99,7 +99,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
     };
   }, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
 
-  // Calculate status distribution with safe defaults
+  // Calculate status distribution with safe defaults - UPDATED: Removed negotiation and lost
   const statusDistribution = React.useMemo(() => {
     // Ensure leads is always an array
     const safeLeads = Array.isArray(leads) ? leads : [];
@@ -109,14 +109,18 @@ const CRMAnalyticsDashboard: React.FC = () => {
       Contacted: 0,
       qualified: 0,
       followup: 0,
-      negotiation: 0,
       won: 0,
-      lost: 0
+      'Not Interested': 0,
+      'Call Back': 0,
+      'Switch off': 0,
+      'RNR': 0
     };
 
     safeLeads.forEach(lead => {
       if (lead && lead.status) {
-        statusCounts[lead.status]++;
+        if (statusCounts.hasOwnProperty(lead.status)) {
+          statusCounts[lead.status]++;
+        }
       }
     });
 
@@ -146,7 +150,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
     }));
   }, [leads]);
 
-  // Calculate summary data with safe defaults
+  // Calculate summary data with safe defaults - UPDATED: Removed negotiation and lost
   const summaryData = React.useMemo(() => {
     const safeLeads = Array.isArray(leads) ? leads : [];
     
@@ -155,8 +159,15 @@ const CRMAnalyticsDashboard: React.FC = () => {
     const contactedLeads = safeLeads.filter(lead => lead?.status === 'Contacted').length;
     const followup = safeLeads.filter(lead => lead?.status === 'followup').length;
     const qualifiedLeads = safeLeads.filter(lead => lead?.status === 'qualified').length;
+    const wonLeads = safeLeads.filter(lead => lead?.status === 'won').length;
+    const notInterested = safeLeads.filter(lead => lead?.status === 'Not Interested').length;
+    const callBack = safeLeads.filter(lead => lead?.status === 'Call Back').length;
+    const switchOff = safeLeads.filter(lead => lead?.status === 'Switch off').length;
+    const rnr = safeLeads.filter(lead => lead?.status === 'RNR').length;
+    
+    // UPDATED: Removed 'negotiation' from conversion rate calculation
     const conversionRate = Math.round((safeLeads.filter(lead => 
-      lead?.status && ['qualified', 'negotiation', 'won'].includes(lead.status)
+      lead?.status && ['qualified', 'won'].includes(lead.status)
     ).length / Math.max(totalLeads, 1)) * 100);
 
     return {
@@ -165,6 +176,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
       contactedLeads,
       followup,
       qualifiedLeads,
+      wonLeads,
+      notInterested,
+      callBack,
+      switchOff,
+      rnr,
       conversionRate
     };
   }, [leads]);
@@ -192,15 +208,17 @@ const CRMAnalyticsDashboard: React.FC = () => {
     );
   };
 
-  // Status colors
+  // Status colors - UPDATED: Removed negotiation and lost colors
   const statusColors = [
     "#3b82f6", // blue-500 - New
     "#8b5cf6", // purple-500 - Contacted
     "#f59e0b", // yellow-500 - Followup
     "#10b981", // green-500 - Qualified
-    "#f97316", // orange-500 - Negotiation
     "#059669", // emerald-600 - Won
-    "#ef4444", // red-500 - Lost
+    "#dc2626", // red-600 - Not Interested
+    "#f97316", // orange-500 - Call Back
+    "#6b7280", // gray-500 - Switch off
+    "#4f46e5", // indigo-600 - RNR
   ];
 
   const sourceColors = [

@@ -33,6 +33,10 @@ const statusOptions = [
   { value: 'Contacted', label: 'Contacted', color: 'bg-purple-100 text-purple-800' },
   { value: 'followup', label: 'Followup', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-800' },
+  { value: 'Not Interested', label: 'Not Interested', color: 'bg-red-100 text-red-800' },
+  { value: 'Call Back', label: 'Call Back', color: 'bg-orange-100 text-orange-800' },
+  { value: 'Switch off', label: 'Switch off', color: 'bg-gray-100 text-gray-800' },
+  { value: 'RNR', label: 'RNR', color: 'bg-indigo-100 text-indigo-800' },
 ];
 
 const CRMDashboard: React.FC = () => {
@@ -426,10 +430,9 @@ const CRMDashboard: React.FC = () => {
   useEffect(() => {
     let result = leads;
 
-    // First filter out unwanted statuses
     result = result.filter(lead => 
-      ['new', 'Contacted', 'qualified', 'followup'].includes(lead.status)
-    );
+    ['new', 'Contacted', 'qualified', 'followup', 'Not Interested', 'Call Back', 'Switch off', 'RNR'].includes(lead.status)
+  );
 
     if (searchTerm) {
       result = result.filter(lead =>
@@ -506,7 +509,11 @@ const CRMDashboard: React.FC = () => {
       followup: 'bg-yellow-100 text-yellow-800',
       negotiation: 'bg-orange-100 text-orange-800',
       won: 'bg-emerald-100 text-emerald-800',
-      lost: 'bg-red-100 text-red-800'
+      lost: 'bg-red-100 text-red-800',
+      'Not Interested': 'bg-red-100 text-red-800',
+      'Call Back': 'bg-orange-100 text-orange-800',
+      'Switch off': 'bg-gray-100 text-gray-800',
+      'RNR': 'bg-indigo-100 text-indigo-800'
     };
     return colors[status];
   };
@@ -763,11 +770,15 @@ const CRMDashboard: React.FC = () => {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="all">All Status</option>
-                <option value="new">New</option>
-                <option value="Contacted">Contacted</option>
-                <option value="followup">followup</option>
-                <option value="qualified">Qualified</option>  
+                 <option value="all">All Status</option>
+                  <option value="new">New</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="followup">Followup</option>
+                  <option value="qualified">Qualified</option>
+                  <option value="Not Interested">Not Interested</option>
+                  <option value="Call Back">Call Back</option>
+                  <option value="Switch off">Switch off</option>
+                  <option value="RNR">RNR</option> 
              </select>
             </div>
 

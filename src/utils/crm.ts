@@ -54,7 +54,7 @@ export interface Lead {
   email: string;
   phone: string;
   company: string;
-  status: 'new' | 'Contacted' | 'qualified' | 'followup' | 'negotiation' | 'won' | 'lost';
+  status: 'new' | 'Contacted' | 'qualified' | 'followup' | 'negotiation' | 'won' | 'lost' | 'Not Interested' | 'Call Back' | 'Switch off' | 'RNR';
   source: string;
   value: number;
   createdAt: string;
@@ -111,7 +111,11 @@ const mapApiStatus = (apiStatus: string): Lead['status'] => {
     'Negotiation': 'negotiation',
     'Won': 'won',
     'Lost': 'lost',
-    'Client': 'won'
+    'Client': 'won',
+    'Not Interested': 'Not Interested',
+    'Call Back': 'Call Back',
+    'Switch off': 'Switch off',
+    'RNR': 'RNR'
   };
   return statusMap[apiStatus] || 'new';
 };
