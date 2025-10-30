@@ -314,3 +314,15 @@ export const getCacheInfo = () => {
     };
   }
 };
+
+// utils/crmCache.ts
+export const updateCachedLeadDetails = (leadId: string, updatedLead: Lead) => {
+  if (typeof window === 'undefined') return;
+  
+  const key = `lead_${leadId}`;
+  const cachedData = {
+    data: updatedLead,
+    timestamp: new Date().getTime()
+  };
+  localStorage.setItem(key, JSON.stringify(cachedData));
+};
