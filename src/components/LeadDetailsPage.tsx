@@ -11,6 +11,7 @@ import {
 import { getLeadById, type Lead } from '@/utils/crm';
 import { getCachedLeadDetails, getCachedComments, saveCommentsToCache, type Comment } from '@/utils/crmCache';
 import { useAuth } from '@/contexts/AuthContext';
+import LeadTasksTab from '@/components/CRM/Lead Details/LeadTasksTab'; // Import the separated Task component
 
 interface Tab {
   id: string;
@@ -24,13 +25,6 @@ const mockActivities = [
   { id: 2, action: 'Initial contact made', date: '2024-01-16 02:15 PM', user: 'System', type: 'contact', description: 'Phone call - discussed basic requirements' },
   { id: 3, action: 'Product demo scheduled', date: '2024-01-17 11:00 AM', user: 'System', type: 'meeting', description: 'Demo scheduled for next week' },
   { id: 4, action: 'Proposal sent', date: '2024-01-18 04:45 PM', user: 'System', type: 'proposal', description: 'Sent enterprise proposal package' }
-];
-
-const mockTasks = [
-  { id: 1, task: 'Follow up on proposal', due: '2024-01-25', priority: 'high', completed: false, assignedTo: 'Sales Team' },
-  { id: 2, task: 'Schedule technical demo', due: '2024-01-30', priority: 'medium', completed: false, assignedTo: 'Technical Team' },
-  { id: 3, task: 'Send contract documents', due: '2024-01-19', priority: 'high', completed: true, assignedTo: 'Sales Team' },
-  { id: 4, task: 'Collect feedback', due: '2024-01-22', priority: 'low', completed: false, assignedTo: 'Sales Team' }
 ];
 
 const mockEmails = [
@@ -52,13 +46,13 @@ const LeadDetailsPage: React.FC = () => {
   const { leadId } = useParams<{ leadId: string }>();
   const navigate = useNavigate();
   const [lead, setLead] = useState<Lead | null>(null);
-  const [activeTab, setActiveTab] = useState('activity');
+  const [activeTab, setActiveTab] = useState('form');
   const [loading, setLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [messages, setMessages] = useState(mockWhatsAppMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // New states for comments - ALWAYS DECLARE HOOKS AT THE TOP LEVEL
+  // New states for comments
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -68,12 +62,12 @@ const LeadDetailsPage: React.FC = () => {
   const email = user?.email || '';
   
   const tabs: Tab[] = [
+    { id: 'form', label: 'Lead Details', icon: FileText },
     { id: 'activity', label: 'Activity', icon: Activity },
     { id: 'comment', label: 'Comments', icon: MessageSquare },
     { id: 'task', label: 'Tasks', icon: CheckSquare },
     { id: 'email', label: 'Email', icon: Mail },
-    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
-    { id: 'form', label: 'Lead Details', icon: FileText }
+    { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle }
   ];
 
   // Function to fetch comments
@@ -271,15 +265,6 @@ const LeadDetailsPage: React.FC = () => {
       lost: 'bg-red-100 text-red-800'
     };
     return colors[status];
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors = {
-      high: 'bg-red-100 text-red-800 border-red-200',
-      medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      low: 'bg-blue-100 text-blue-800 border-blue-200'
-    };
-    return colors[priority as keyof typeof colors] || 'bg-gray-100 text-gray-800';
   };
 
   const getActivityIcon = (type: string) => {
@@ -539,56 +524,13 @@ const LeadDetailsPage: React.FC = () => {
             </div>
           )}
 
-          {/* Tasks Tab */}
+          {/* Tasks Tab - Now using the separated component */}
           {activeTab === 'task' && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-lg font-semibold text-gray-800">Tasks</h3>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-2">
-                    <Plus size={16} />
-                    New Task
-                  </button>
-                </div>
-                <div className="grid gap-4">
-                  {mockTasks.map((task) => (
-                    <div key={task.id} className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <input 
-                            type="checkbox" 
-                            checked={task.completed}
-                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            readOnly
-                          />
-                          <div>
-                            <span className={`font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-900'}`}>
-                              {task.task}
-                            </span>
-                            <div className="flex items-center gap-4 mt-1">
-                              <span className={`px-2 py-1 text-xs rounded border ${getPriorityColor(task.priority)}`}>
-                                {task.priority}
-                              </span>
-                              <span className="text-sm text-gray-500 flex items-center gap-1">
-                                <Calendar size={14} />
-                                Due: {task.due}
-                              </span>
-                              <span className="text-sm text-gray-500 flex items-center gap-1">
-                                <User size={14} />
-                                {task.assignedTo}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <button className="text-gray-400 hover:text-gray-600 transition-colors">
-                          <MoreVertical size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <LeadTasksTab 
+              leadId={leadId || ''}
+              employeeId={employeeId}
+              email={email}
+            />
           )}
 
           {/* Email Tab */}
@@ -747,6 +689,12 @@ const LeadDetailsPage: React.FC = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                       <div className="p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900">
                         {lead.email}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                      <div className="p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900">
+                        {lead.language}
                       </div>
                     </div>
                     <div>

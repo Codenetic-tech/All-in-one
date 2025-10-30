@@ -45,6 +45,7 @@ export interface APILead {
   notes?: string;
   campaign?: string;
   _assign: string;
+  language: string;
 }
 
 export interface Lead {
@@ -83,6 +84,7 @@ export interface Lead {
   _isModified?: boolean;
   campaign?: string;
   _assign: string;
+  language: string;
 }
 
 // Import cache functions
@@ -91,7 +93,12 @@ import {
   saveLeadsToCache, 
   getCachedLeadDetails, 
   saveLeadDetailsToCache,
-  clearAllCache 
+  clearAllCache,
+  getCachedTasks,
+  saveTasksToCache,
+  clearTasksCache,
+  clearTasksCacheForLead,
+  type Task 
 } from '@/utils/crmCache';
 
 // Function to map API status to our status
@@ -163,7 +170,8 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
     firstResponseTime: apiLead.first_response_time,
     firstRespondedOn: apiLead.first_responded_on,
     campaign: apiLead.campaign,
-    _assign: apiLead._assign
+    _assign: apiLead._assign,
+    language: apiLead.language
 
   };
 };

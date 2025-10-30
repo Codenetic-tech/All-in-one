@@ -190,38 +190,127 @@ export const clearCommentsCache = (): void => {
   localStorage.removeItem(COMMENTS_CACHE_KEY);
 };
 
+
+// Add Task interface (same as in LeadTasksTab.tsx)
+export interface Task {
+  name: string;
+  title: string;
+  description: string;
+  due_date: string;
+  priority: 'Low' | 'Medium' | 'High';
+  status: 'Todo' | 'In Progress' | 'Done';
+  assigned_to: string;
+  creation: string;
+  modified: string;
+}
+
+interface CachedTasksData {
+  [leadId: string]: {
+    tasks: Task[];
+    timestamp: number;
+  };
+}
+
+const TASKS_CACHE_KEY = 'crm_tasks_cache';
+
+export const getCachedTasks = (leadId: string): Task[] | null => {
+  try {
+    const cached = localStorage.getItem(TASKS_CACHE_KEY);
+    if (!cached) return null;
+
+    const cachedData: CachedTasksData = JSON.parse(cached);
+    const taskCache = cachedData[leadId];
+    
+    if (!taskCache) return null;
+    
+    const isExpired = Date.now() - taskCache.timestamp > CACHE_DURATION;
+    if (isExpired) {
+      delete cachedData[leadId];
+      localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(cachedData));
+      return null;
+    }
+
+    return taskCache.tasks;
+  } catch (error) {
+    console.error('Error reading tasks cache:', error);
+    return null;
+  }
+};
+
+export const saveTasksToCache = (leadId: string, tasks: Task[]): void => {
+  try {
+    const cached = localStorage.getItem(TASKS_CACHE_KEY);
+    const cachedData: CachedTasksData = cached ? JSON.parse(cached) : {};
+    
+    cachedData[leadId] = {
+      tasks,
+      timestamp: Date.now()
+    };
+    
+    localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(cachedData));
+  } catch (error) {
+    console.error('Error saving tasks to cache:', error);
+  }
+};
+
+export const clearTasksCache = (): void => {
+  localStorage.removeItem(TASKS_CACHE_KEY);
+};
+
+export const clearTasksCacheForLead = (leadId: string): void => {
+  try {
+    const cached = localStorage.getItem(TASKS_CACHE_KEY);
+    if (!cached) return;
+
+    const cachedData: CachedTasksData = JSON.parse(cached);
+    delete cachedData[leadId];
+    localStorage.setItem(TASKS_CACHE_KEY, JSON.stringify(cachedData));
+  } catch (error) {
+    console.error('Error clearing tasks cache for lead:', error);
+  }
+};
+
+// Update getCacheInfo to include tasks cache info
 export const getCacheInfo = () => {
   try {
     const leadsCache = localStorage.getItem(LEADS_CACHE_KEY);
     const detailsCache = localStorage.getItem(LEAD_DETAILS_CACHE_KEY);
     const commentsCache = localStorage.getItem(COMMENTS_CACHE_KEY);
+    const tasksCache = localStorage.getItem(TASKS_CACHE_KEY);
     
     const leadsData = leadsCache ? JSON.parse(leadsCache) : null;
     const detailsData = detailsCache ? JSON.parse(detailsCache) : null;
     const commentsData = commentsCache ? JSON.parse(commentsCache) : null;
+    const tasksData = tasksCache ? JSON.parse(tasksCache) : null;
     
     return {
       hasLeadsCache: !!leadsCache,
       hasDetailsCache: !!detailsCache,
       hasCommentsCache: !!commentsCache,
+      hasTasksCache: !!tasksCache,
       leadsCount: leadsData ? leadsData.leads.length : 0,
       detailsCount: detailsData ? Object.keys(detailsData).length : 0,
       commentsCount: commentsData ? Object.keys(commentsData).length : 0,
+      tasksCount: tasksData ? Object.keys(tasksData).length : 0,
       leadsTimestamp: leadsData ? leadsData.timestamp : null,
       detailsTimestamp: detailsData ? Math.max(...Object.values(detailsData).map((d: any) => d.timestamp)) : null,
-      commentsTimestamp: commentsData ? Math.max(...Object.values(commentsData).map((c: any) => c.timestamp)) : null
+      commentsTimestamp: commentsData ? Math.max(...Object.values(commentsData).map((c: any) => c.timestamp)) : null,
+      tasksTimestamp: tasksData ? Math.max(...Object.values(tasksData).map((t: any) => t.timestamp)) : null
     };
   } catch {
     return {
       hasLeadsCache: false,
       hasDetailsCache: false,
       hasCommentsCache: false,
+      hasTasksCache: false,
       leadsCount: 0,
       detailsCount: 0,
       commentsCount: 0,
+      tasksCount: 0,
       leadsTimestamp: null,
       detailsTimestamp: null,
-      commentsTimestamp: null
+      commentsTimestamp: null,
+      tasksTimestamp: null
     };
   }
 };
