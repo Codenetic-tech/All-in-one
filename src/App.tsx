@@ -15,6 +15,7 @@ import Incentive from './components/management';
 import Tickets from './components/tickets';
 import Clients from './components/Clients';
 import CRMAnalyticsDashboard from './components/CRM/CRMAnalyticsDashboard';
+import TasksKanbanPage from './components/tasks-kanban';
 
 const queryClient = new QueryClient();
 
@@ -146,7 +147,7 @@ const AppContent = () => {
           path="/task" 
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <TasksKanbanPage />
             </ProtectedRoute>
           } 
         />
