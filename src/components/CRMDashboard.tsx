@@ -94,10 +94,19 @@ const CRMDashboard: React.FC = () => {
 
   // Rate limiting functions
   const canRefresh = useMemo(() => {
-    if (!lastRefreshTime) return true;
-    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
-    return timeSinceLastRefresh >= REFRESH_COOLDOWN_MS;
-  }, [lastRefreshTime]);
+  if (!lastRefreshTime) return true;
+  const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+  const canRefreshNow = timeSinceLastRefresh >= REFRESH_COOLDOWN_MS;
+  
+  // If we can refresh now but cooldown timer is still running, clear it
+  if (canRefreshNow && cooldownIntervalRef.current) {
+    clearInterval(cooldownIntervalRef.current);
+    cooldownIntervalRef.current = null;
+    setCooldownRemaining(0);
+  }
+  
+  return canRefreshNow;
+}, [lastRefreshTime, cooldownRemaining]);
 
   const getCooldownRemaining = () => {
     if (!lastRefreshTime) return 0;
@@ -112,34 +121,44 @@ const CRMDashboard: React.FC = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  // Update cooldown timer
-  useEffect(() => {
-    if (lastRefreshTime && !canRefresh) {
-      cooldownIntervalRef.current = setInterval(() => {
-        const remaining = getCooldownRemaining();
-        setCooldownRemaining(remaining);
-        
-        if (remaining <= 0) {
-          if (cooldownIntervalRef.current) {
-            clearInterval(cooldownIntervalRef.current);
-            cooldownIntervalRef.current = null;
-          }
+  // Update the cooldown timer effect with improved logic
+useEffect(() => {
+  // Clear any existing interval
+  if (cooldownIntervalRef.current) {
+    clearInterval(cooldownIntervalRef.current);
+    cooldownIntervalRef.current = null;
+  }
+  
+  if (lastRefreshTime && !canRefresh) {
+    // Set initial remaining time
+    const initialRemaining = getCooldownRemaining();
+    setCooldownRemaining(initialRemaining);
+    
+    // Start the countdown interval
+    cooldownIntervalRef.current = setInterval(() => {
+      const remaining = getCooldownRemaining();
+      setCooldownRemaining(remaining);
+      
+      // Clear interval when cooldown is complete
+      if (remaining <= 0) {
+        if (cooldownIntervalRef.current) {
+          clearInterval(cooldownIntervalRef.current);
+          cooldownIntervalRef.current = null;
         }
-      }, 1000);
-    } else {
-      if (cooldownIntervalRef.current) {
-        clearInterval(cooldownIntervalRef.current);
-        cooldownIntervalRef.current = null;
+        setCooldownRemaining(0);
       }
-      setCooldownRemaining(0);
-    }
+    }, 1000);
+  } else {
+    setCooldownRemaining(0);
+  }
 
-    return () => {
-      if (cooldownIntervalRef.current) {
-        clearInterval(cooldownIntervalRef.current);
-      }
-    };
-  }, [lastRefreshTime, canRefresh]);
+  return () => {
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+      cooldownIntervalRef.current = null;
+    }
+  };
+}, [lastRefreshTime, canRefresh]); // Added canRefresh as dependency
 
   // Function to change lead status
   const changeLeadStatus = async (leadId: string, newStatus: string, leadName: string) => {
@@ -646,39 +665,49 @@ const CRMDashboard: React.FC = () => {
     const isRefreshing = isManualRefreshing || isAutoRefreshing;
     const isDisabled = !canRefresh || isRefreshing || isInitialLoading;
 
-    return (
-      <button 
-        onClick={handleRateLimitedRefresh}
-        disabled={isDisabled}
-        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed relative group"
-        title={!canRefresh ? `Available in ${formatCooldownTime(cooldownRemaining)}` : 'Refresh leads'}
-      >
-        {isRefreshing ? (
-          <>
-            <RefreshCw size={16} className="animate-spin" />
-            Refreshing...
-          </>
-        ) : !canRefresh ? (
-          <>
-            <Clock size={16} />
-            {formatCooldownTime(cooldownRemaining)}
-          </>
-        ) : (
-          <>
-            <RefreshCw size={16} />
-            Refresh
-          </>
-        )}
-        
-        {/* Tooltip for cooldown */}
-        {!canRefresh && (
-          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg z-10">
-            Available in {formatCooldownTime(cooldownRemaining)}
-          </div>
-        )}
-      </button>
+    // Determine button content
+  let buttonContent;
+  if (isRefreshing) {
+    buttonContent = (
+      <>
+        <RefreshCw size={16} className="animate-spin" />
+        Refreshing...
+      </>
     );
-  };
+  } else if (!canRefresh && cooldownRemaining > 0) {
+    buttonContent = (
+      <>
+        <Clock size={16} />
+        {formatCooldownTime(cooldownRemaining)}
+      </>
+    );
+  } else {
+    buttonContent = (
+      <>
+        <RefreshCw size={16} />
+        Refresh
+      </>
+    );
+  }
+
+     return (
+    <button 
+      onClick={handleRateLimitedRefresh}
+      disabled={isDisabled}
+      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed relative group"
+      title={!canRefresh ? `Available in ${formatCooldownTime(cooldownRemaining)}` : 'Refresh leads'}
+    >
+      {buttonContent}
+      
+      {/* Tooltip for cooldown */}
+      {!canRefresh && cooldownRemaining > 0 && (
+        <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg z-10">
+          Available in {formatCooldownTime(cooldownRemaining)}
+        </div>
+      )}
+    </button>
+  );
+};
 
   useEffect(() => {
     const handleClickOutside = () => {

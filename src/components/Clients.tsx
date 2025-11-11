@@ -8,7 +8,8 @@ import {
   IndianRupee, RefreshCw, TrendingUp, Check,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Wifi, WifiOff,
   BookText,
-  CalendarCheck
+  CalendarCheck,
+  Clock
 } from 'lucide-react';
 
 // Import the actual useAuth hook and fetchLeads function
@@ -39,6 +40,9 @@ const statusOptions = [
   //{ value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-800' }
 ];
 
+// Rate limiting constants
+const REFRESH_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
+
 const Clients: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Get actual user from auth context
@@ -54,6 +58,7 @@ const Clients: React.FC = () => {
   
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(900); // 15 minutes in seconds
@@ -64,6 +69,10 @@ const Clients: React.FC = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isChangingStatus, setIsChangingStatus] = useState<string | null>(null);
 
+  // Rate limiting state
+  const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -71,10 +80,79 @@ const Clients: React.FC = () => {
   // Refs
   const lastFetchedData = useRef<Lead[]>([]);
   const autoRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
+
+  // Rate limiting functions - FIXED: Use useMemo for canRefresh to ensure proper updates
+  const canRefresh = useMemo(() => {
+    if (!lastRefreshTime) return true;
+    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+    const canRefreshNow = timeSinceLastRefresh >= REFRESH_COOLDOWN_MS;
+    
+    // If we can refresh now but cooldown timer is still running, clear it
+    if (canRefreshNow && cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+      cooldownIntervalRef.current = null;
+      setCooldownRemaining(0);
+    }
+    
+    return canRefreshNow;
+  }, [lastRefreshTime, cooldownRemaining]); // Added cooldownRemaining as dependency
+
+  const getCooldownRemaining = () => {
+    if (!lastRefreshTime) return 0;
+    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+    return Math.max(0, REFRESH_COOLDOWN_MS - timeSinceLastRefresh);
+  };
+
+  const formatCooldownTime = (ms: number) => {
+    const seconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Update cooldown timer - FIXED: Improved logic to handle expiration
+  useEffect(() => {
+    // Clear any existing interval
+    if (cooldownIntervalRef.current) {
+      clearInterval(cooldownIntervalRef.current);
+      cooldownIntervalRef.current = null;
+    }
+    
+    if (lastRefreshTime && !canRefresh) {
+      // Set initial remaining time
+      const initialRemaining = getCooldownRemaining();
+      setCooldownRemaining(initialRemaining);
+      
+      // Start the countdown interval
+      cooldownIntervalRef.current = setInterval(() => {
+        const remaining = getCooldownRemaining();
+        setCooldownRemaining(remaining);
+        
+        // Clear interval when cooldown is complete
+        if (remaining <= 0) {
+          if (cooldownIntervalRef.current) {
+            clearInterval(cooldownIntervalRef.current);
+            cooldownIntervalRef.current = null;
+          }
+          setCooldownRemaining(0);
+        }
+      }, 1000);
+    } else {
+      setCooldownRemaining(0);
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+        cooldownIntervalRef.current = null;
+      }
+    };
+  }, [lastRefreshTime, canRefresh]); // Added canRefresh as dependency
 
   // Function to change lead status
   const changeLeadStatus = async (leadId: string, newStatus: string, leadName: string) => {
@@ -130,10 +208,13 @@ const Clients: React.FC = () => {
   };
 
   // Fetch all leads using the actual fetchLeads function
-  const fetchAllLeads = async (isAutoRefresh = false) => {
+  const fetchAllLeads = async (isAutoRefresh = false, isManualRefresh = false) => {
     try {
       if (isAutoRefresh) {
         setIsAutoRefreshing(true);
+        setConnectionStatus('syncing');
+      } else if (isManualRefresh) {
+        setIsManualRefreshing(true);
         setConnectionStatus('syncing');
       } else {
         setIsInitialLoading(true);
@@ -142,7 +223,7 @@ const Clients: React.FC = () => {
       setError(null);
       
       // Use the actual fetchLeads function that sends employeeId and email to webhook
-      const apiLeads = await fetchLeads(employeeId, email);
+      const apiLeads = await fetchLeads(employeeId, email, user.team);
       
       if (isAutoRefresh && lastFetchedData.current.length > 0) {
         // Incremental update for auto-refresh
@@ -242,6 +323,7 @@ const Clients: React.FC = () => {
     } finally {
       setIsInitialLoading(false);
       setIsAutoRefreshing(false);
+      setIsManualRefreshing(false);
     }
   };
 
@@ -249,6 +331,27 @@ const Clients: React.FC = () => {
   const getLeadContentHash = (lead: Lead): string => {
     const keys: (keyof Lead)[] = ['name', 'email', 'phone', 'company', 'status', 'value', 'assignedTo', 'lastActivity'];
     return keys.map(key => String(lead[key] || '')).join('|');
+  };
+
+  // Rate-limited refresh function
+  const handleRateLimitedRefresh = async () => {
+    if (!canRefresh) {
+      setError(`Please wait ${formatCooldownTime(cooldownRemaining)} before refreshing again`);
+      return;
+    }
+
+    setLastRefreshTime(Date.now());
+    await handleClearCacheAndRefresh();
+  };
+
+  // Modified clear cache and refresh function
+  const handleClearCacheAndRefresh = async () => {
+    if (!employeeId || !email) return;
+    
+    // Clear cache and force refresh from API
+    clearAllCache();
+    await refreshLeads(employeeId, email, user.team);
+    await fetchAllLeads(false, true); // Pass true to indicate manual refresh
   };
 
   // Load data on mount
@@ -400,16 +503,6 @@ useEffect(() => {
     navigate(`/crm/leads/${leadId}`);
   };
 
-
-  const handleClearCacheAndRefresh = async () => {
-    if (!employeeId || !email) return;
-    
-    // Clear cache and force refresh from API
-    clearAllCache();
-    await refreshLeads(employeeId, email);
-    await fetchAllLeads(false);
-  };
-
   const toggleDropdown = (leadId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setOpenDropdown(openDropdown === leadId ? null : leadId);
@@ -430,6 +523,55 @@ useEffect(() => {
       default:
         return <Wifi className="h-4 w-4 text-gray-500" />;
     }
+  };
+
+  // Refresh button component with rate limiting - FIXED: Improved logic
+  const RefreshButton = () => {
+    const isRefreshing = isManualRefreshing || isAutoRefreshing;
+    const isDisabled = !canRefresh || isRefreshing || isInitialLoading;
+
+    // Determine button content
+    let buttonContent;
+    if (isRefreshing) {
+      buttonContent = (
+        <>
+          <RefreshCw size={18} className="animate-spin" />
+          Refreshing...
+        </>
+      );
+    } else if (!canRefresh && cooldownRemaining > 0) {
+      buttonContent = (
+        <>
+          <Clock size={18} />
+          {formatCooldownTime(cooldownRemaining)}
+        </>
+      );
+    } else {
+      buttonContent = (
+        <>
+          <RefreshCw size={18} />
+          Refresh
+        </>
+      );
+    }
+
+    return (
+      <button 
+        onClick={handleRateLimitedRefresh}
+        disabled={isDisabled}
+        className="px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative group"
+        title={!canRefresh ? `Available in ${formatCooldownTime(cooldownRemaining)}` : 'Refresh leads'}
+      >
+        {buttonContent}
+        
+        {/* Tooltip for cooldown */}
+        {!canRefresh && cooldownRemaining > 0 && (
+          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg z-10">
+            Available in {formatCooldownTime(cooldownRemaining)}
+          </div>
+        )}
+      </button>
+    );
   };
 
   useEffect(() => {
@@ -555,7 +697,7 @@ useEffect(() => {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+            {/*<div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="autoRefresh"
@@ -574,15 +716,8 @@ useEffect(() => {
               <option value={300}>5 min</option>
               <option value={600}>10 min</option>
               <option value={900}>15 min</option>
-            </select>
-            <button 
-              onClick={handleClearCacheAndRefresh}
-              disabled={isInitialLoading || isAutoRefreshing}
-              className="px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              <RefreshCw size={18} className={isInitialLoading || isAutoRefreshing ? 'animate-spin' : ''} />
-              Refresh
-            </button>
+            </select>*/}
+            <RefreshButton />
             <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors">
               <Plus size={20} />
               Add New Lead
