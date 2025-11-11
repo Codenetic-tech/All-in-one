@@ -8,7 +8,8 @@ import {
   IndianRupee, RefreshCw, TrendingUp, Check,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Wifi, WifiOff,
   BookText,
-  CalendarCheck
+  CalendarCheck,
+  Clock
 } from 'lucide-react';
 
 // Import the actual useAuth hook and fetchLeads function
@@ -39,6 +40,9 @@ const statusOptions = [
   { value: 'RNR', label: 'RNR', color: 'bg-indigo-100 text-indigo-800' },
 ];
 
+// Rate limiting constants
+const REFRESH_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
+
 const CRMDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth(); // Get actual user from auth context
@@ -54,6 +58,7 @@ const CRMDashboard: React.FC = () => {
   
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isAutoRefreshing, setIsAutoRefreshing] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(900); // 15 minutes in seconds
@@ -63,6 +68,10 @@ const CRMDashboard: React.FC = () => {
   const [modifiedRecordsCount, setModifiedRecordsCount] = useState(0);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [isChangingStatus, setIsChangingStatus] = useState<string | null>(null);
+
+  // Rate limiting state
+  const [lastRefreshTime, setLastRefreshTime] = useState<number | null>(null);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
 
   // Bulk action state
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -76,11 +85,61 @@ const CRMDashboard: React.FC = () => {
   // Refs
   const lastFetchedData = useRef<Lead[]>([]);
   const autoRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const cooldownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
   const teamMembers = user?.team ? JSON.parse(user.team) : [];
+
+  // Rate limiting functions
+  const canRefresh = useMemo(() => {
+    if (!lastRefreshTime) return true;
+    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+    return timeSinceLastRefresh >= REFRESH_COOLDOWN_MS;
+  }, [lastRefreshTime]);
+
+  const getCooldownRemaining = () => {
+    if (!lastRefreshTime) return 0;
+    const timeSinceLastRefresh = Date.now() - lastRefreshTime;
+    return Math.max(0, REFRESH_COOLDOWN_MS - timeSinceLastRefresh);
+  };
+
+  const formatCooldownTime = (ms: number) => {
+    const seconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  // Update cooldown timer
+  useEffect(() => {
+    if (lastRefreshTime && !canRefresh) {
+      cooldownIntervalRef.current = setInterval(() => {
+        const remaining = getCooldownRemaining();
+        setCooldownRemaining(remaining);
+        
+        if (remaining <= 0) {
+          if (cooldownIntervalRef.current) {
+            clearInterval(cooldownIntervalRef.current);
+            cooldownIntervalRef.current = null;
+          }
+        }
+      }, 1000);
+    } else {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+        cooldownIntervalRef.current = null;
+      }
+      setCooldownRemaining(0);
+    }
+
+    return () => {
+      if (cooldownIntervalRef.current) {
+        clearInterval(cooldownIntervalRef.current);
+      }
+    };
+  }, [lastRefreshTime, canRefresh]);
 
   // Function to change lead status
   const changeLeadStatus = async (leadId: string, newStatus: string, leadName: string) => {
@@ -197,22 +256,22 @@ const CRMDashboard: React.FC = () => {
     }
   };
 
-  // Bulk Actions Bar Component
+  // Bulk Actions Bar Component - Responsive
   const BulkActionsBar = () => {
     if (selectedLeads.length === 0) return null;
 
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-blue-800 font-medium">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+            <span className="text-blue-800 font-medium text-sm sm:text-base">
               {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
             </span>
             
             <select
               value={selectedTeamMember}
               onChange={(e) => setSelectedTeamMember(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
               <option value="">Select team member</option>
               {teamMembers.map((member: string) => (
@@ -225,12 +284,12 @@ const CRMDashboard: React.FC = () => {
             <button
               onClick={handleBulkAssign}
               disabled={!selectedTeamMember || isAssigning}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="w-full sm:w-auto px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center text-sm"
             >
               {isAssigning ? (
-                <RefreshCw size={16} className="animate-spin" />
+                <RefreshCw size={14} className="animate-spin" />
               ) : (
-                <Users size={16} />
+                <Users size={14} />
               )}
               Assign Selected
             </button>
@@ -238,7 +297,7 @@ const CRMDashboard: React.FC = () => {
 
           <button
             onClick={() => setSelectedLeads([])}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 text-sm w-full sm:w-auto text-center"
           >
             Clear selection
           </button>
@@ -248,10 +307,13 @@ const CRMDashboard: React.FC = () => {
   };
 
   // Fetch all leads using the actual fetchLeads function
-  const fetchAllLeads = async (isAutoRefresh = false) => {
+  const fetchAllLeads = async (isAutoRefresh = false, isManualRefresh = false) => {
     try {
       if (isAutoRefresh) {
         setIsAutoRefreshing(true);
+        setConnectionStatus('syncing');
+      } else if (isManualRefresh) {
+        setIsManualRefreshing(true);
         setConnectionStatus('syncing');
       } else {
         setIsInitialLoading(true);
@@ -355,11 +417,17 @@ const CRMDashboard: React.FC = () => {
       setLastUpdated(new Date());
     } catch (error: any) {
       console.error('Error fetching leads:', error);
-      setError(`Failed to fetch leads: ${error.message}`);
+      // Show user-friendly error message
+      if (error.message.includes('Failed to fetch') || error.message.includes('JSON')) {
+        setError('Unable to load leads. Please check your connection and try again.');
+      } else {
+        setError(`Failed to fetch leads: ${error.message}`);
+      }
       setConnectionStatus('disconnected');
     } finally {
       setIsInitialLoading(false);
       setIsAutoRefreshing(false);
+      setIsManualRefreshing(false);
     }
   };
 
@@ -367,6 +435,27 @@ const CRMDashboard: React.FC = () => {
   const getLeadContentHash = (lead: Lead): string => {
     const keys: (keyof Lead)[] = ['name', 'email', 'phone', 'company', 'status', 'value', 'assignedTo', 'lastActivity'];
     return keys.map(key => String(lead[key] || '')).join('|');
+  };
+
+  // Rate-limited refresh function
+  const handleRateLimitedRefresh = async () => {
+    if (!canRefresh) {
+      setError(`Please wait ${formatCooldownTime(cooldownRemaining)} before refreshing again`);
+      return;
+    }
+
+    setLastRefreshTime(Date.now());
+    await handleClearCacheAndRefresh();
+  };
+
+  // Modified clear cache and refresh function
+  const handleClearCacheAndRefresh = async () => {
+    if (!employeeId || !email) return;
+    
+    // Clear cache and force refresh from API
+    clearAllCache();
+    await refreshLeads(employeeId, email, user.team);
+    await fetchAllLeads(false, true); // Pass true to indicate manual refresh
   };
 
   // Load data on mount
@@ -525,15 +614,6 @@ const CRMDashboard: React.FC = () => {
     }
   };
 
-  const handleClearCacheAndRefresh = async () => {
-    if (!employeeId || !email) return;
-    
-    // Clear cache and force refresh from API
-    clearAllCache();
-    await refreshLeads(employeeId, email, user.team);
-    await fetchAllLeads(false);
-  };
-
   const handleLeadAdded = () => {
     // Refresh the leads list after adding a new lead
     handleClearCacheAndRefresh();
@@ -561,6 +641,45 @@ const CRMDashboard: React.FC = () => {
     }
   };
 
+  // Refresh button component with rate limiting
+  const RefreshButton = () => {
+    const isRefreshing = isManualRefreshing || isAutoRefreshing;
+    const isDisabled = !canRefresh || isRefreshing || isInitialLoading;
+
+    return (
+      <button 
+        onClick={handleRateLimitedRefresh}
+        disabled={isDisabled}
+        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed relative group"
+        title={!canRefresh ? `Available in ${formatCooldownTime(cooldownRemaining)}` : 'Refresh leads'}
+      >
+        {isRefreshing ? (
+          <>
+            <RefreshCw size={16} className="animate-spin" />
+            Refreshing...
+          </>
+        ) : !canRefresh ? (
+          <>
+            <Clock size={16} />
+            {formatCooldownTime(cooldownRemaining)}
+          </>
+        ) : (
+          <>
+            <RefreshCw size={16} />
+            Refresh
+          </>
+        )}
+        
+        {/* Tooltip for cooldown */}
+        {!canRefresh && (
+          <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap shadow-lg z-10">
+            Available in {formatCooldownTime(cooldownRemaining)}
+          </div>
+        )}
+      </button>
+    );
+  };
+
   useEffect(() => {
     const handleClickOutside = () => {
       setOpenDropdown(null);
@@ -572,8 +691,176 @@ const CRMDashboard: React.FC = () => {
     };
   }, []);
 
+  // Mobile Lead Row Component
+  const MobileLeadRow = ({ lead }: { lead: Lead }) => {
+    return (
+      <div 
+        className={`bg-white border border-gray-200 rounded-lg p-4 mb-3 hover:shadow-md transition-shadow cursor-pointer ${
+          lead._isNew ? 'bg-green-50 border-l-4 border-green-400' : 
+          lead._isModified ? 'bg-blue-50 border-l-4 border-blue-400' : ''
+        }`}
+        onClick={() => handleLeadClick(lead.id)}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3 flex-1">
+            <input
+              type="checkbox"
+              checked={selectedLeads.includes(lead.id)}
+              onChange={() => toggleLeadSelection(lead.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 mt-1"
+            />
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-sm">
+              {lead.name.split(' ').map(n => n[0]).join('')}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 truncate">{lead.name}</p>
+              {lead.ucc && (
+                <p className="text-xs text-gray-400 truncate">UCC: {lead.ucc}</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
+              {lead.status.charAt(0).toUpperCase() + lead.status.slice(1)}
+            </span>
+            <button 
+              className="p-1 text-gray-400 hover:text-gray-600"
+              onClick={(e) => toggleDropdown(lead.id, e)}
+              disabled={isChangingStatus === lead.id}
+            >
+              {isChangingStatus === lead.id ? (
+                <RefreshCw size={16} className="animate-spin" />
+              ) : (
+                <MoreVertical size={16} />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Contact Info */}
+        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+          <div className="flex items-center gap-2">
+            <PhoneIcon size={14} className="text-gray-400" />
+            <span className="text-gray-700 truncate">{lead.phone}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Building2 size={14} className="text-gray-400" />
+            <span className="text-gray-700 truncate">{lead.city || 'N/A'}</span>
+          </div>
+        </div>
+
+        {/* Source and Campaign */}
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+          <span>Source: {lead.source}</span>
+          <span>Campaign: {lead.campaign || 'N/A'}</span>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between text-xs text-gray-500 border-t border-gray-100 pt-2">
+          <span>Created: {new Date(lead.createdAt).toLocaleDateString('en-GB')}</span>
+          <span>Modified: {lead.lastActivity}</span>
+        </div>
+
+        {/* Assignees */}
+        <div className="flex items-center justify-between mt-2">
+          <div className="flex -space-x-2">
+            {JSON.parse(lead._assign || "[]")
+              .filter((user: string) => user !== "gokul.krishna.687@gopocket.in")
+              .map((user: string, index: number) => {
+                const firstLetter = user.charAt(0).toUpperCase();
+                return (
+                  <div key={index} className="relative group">
+                    <div
+                      className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-500 text-white text-xs font-semibold border-2 border-white"
+                      title={user}
+                    >
+                      {firstLetter}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Enhanced loading state
+  const LoadingState = () => (
+    <div className="text-center py-12">
+      <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-500 mb-4" />
+      <p className="text-gray-600">Loading leads...</p>
+    </div>
+  );
+
+  // Enhanced empty state
+  const EmptyState = () => (
+    <div className="text-center py-12">
+      <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+      <h3 className="text-lg font-medium text-gray-900 mb-2">No leads assigned to you</h3>
+      <p className="text-gray-600 mb-6">You don't have any leads assigned to you at the moment.</p>
+      <AddLeadDialog onLeadAdded={handleLeadAdded} />
+    </div>
+  );
+
+  // Enhanced no results state
+  const NoResultsState = () => (
+    <div className="text-center py-12">
+      <Search className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+      <h3 className="text-lg font-medium text-gray-900 mb-2">No matching leads found</h3>
+      <p className="text-gray-600">Try adjusting your search or filters to find what you're looking for.</p>
+    </div>
+  );
+
+  // Mobile filters panel
+  const MobileFiltersPanel = () => (
+    <div className="lg:hidden bg-white rounded-lg p-4 mb-4 border border-gray-200">
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Search leads..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+        </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+        >
+          <option value="all">All Status</option>
+          <option value="new">New</option>
+          <option value="Contacted">Contacted</option>
+          <option value="followup">Followup</option>
+          <option value="qualified">Qualified</option>
+          <option value="Not Interested">Not Interested</option>
+          <option value="Call Back">Call Back</option>
+          <option value="Switch off">Switch off</option>
+          <option value="RNR">RNR</option>
+        </select>
+
+        <div className="flex gap-2">
+          <button className="flex-1 px-3 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 justify-center text-sm">
+            <Filter size={16} />
+            Filters
+          </button>
+          <button className="flex-1 px-3 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 justify-center text-sm">
+            <Download size={16} />
+            Export
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const Pagination = () => (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-gray-200 bg-gray-50">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
       <div className="flex items-center gap-4 text-sm text-gray-600">
         <span>Showing {startIndex + 1}-{Math.min(endIndex, filteredLeads.length)} of {filteredLeads.length} leads</span>
       </div>
@@ -591,6 +878,7 @@ const CRMDashboard: React.FC = () => {
           <option value={10}>10 per page</option>
           <option value={25}>25 per page</option>
           <option value={50}>50 per page</option>
+          <option value={100}>100 per page</option>
         </select>
 
         <div className="flex items-center gap-1">
@@ -661,18 +949,18 @@ const CRMDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="w-full p-6">
+      <div className="w-full p-4 sm:p-6">
   
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-3">
+        {/* Header - Responsive */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 mb-2">
               {/* Path Breadcrumb */}
                <PathBreadcrumb />
               {getConnectionStatusIcon()}
             </div>
             {lastUpdated && (
-              <div className="flex items-center gap-4 mt-1 text-sm">
+              <div className="flex items-center gap-4 text-xs sm:text-sm">
                 {(newRecordsCount > 0 || modifiedRecordsCount > 0) && (
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
                     {newRecordsCount > 0 && `${newRecordsCount} new`}
@@ -683,8 +971,8 @@ const CRMDashboard: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            {/*<div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="autoRefresh"
@@ -693,8 +981,8 @@ const CRMDashboard: React.FC = () => {
                 className="h-4 w-4 text-blue-600 rounded"
               />
               <label htmlFor="autoRefresh" className="text-sm text-gray-700">Auto Refresh</label>
-            </div>
-            <select
+            </div>*/}
+            {/*<select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
               className="text-sm border border-gray-300 rounded-md px-3 py-2"
@@ -703,55 +991,54 @@ const CRMDashboard: React.FC = () => {
               <option value={300}>5 min</option>
               <option value={600}>10 min</option>
               <option value={900}>15 min</option>
-            </select>
-            <button 
-              onClick={handleClearCacheAndRefresh}
-              disabled={isInitialLoading || isAutoRefreshing}
-              className="px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              <RefreshCw size={18} className={isInitialLoading || isAutoRefreshing ? 'animate-spin' : ''} />
-              Refresh
-            </button>
+            </select>*/}
+            
+            {/* Use the new RefreshButton component */}
+            <RefreshButton />
+            
             <AddLeadDialog onLeadAdded={handleLeadAdded} />
           </div>
         </div>
 
         {/* Error Alert */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6 text-sm">
             {error}
           </div>
         )}
 
-        <div className="flex flex-col gap-3 mb-8">
-           <h1 className="text-3xl font-bold text-foreground">Lead Management</h1>
+        <div className="flex flex-col gap-3 mb-6">
+           <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Lead Management</h1>
         </div>
 
-        {/* Summary Cards */}
-        <SummaryCardsGrid columns={5} className="mb-6">
+        {/* Summary Cards - Responsive Grid */}
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
           <SummaryCard
-            title="Total Leads" value={summaryData.totalLeads} icon={Users} color="blue" shadowColor="blue" trend={{ value: 12.5, isPositive: true }} showTrend={true} />
+            title="Total Leads" value={summaryData.totalLeads} icon={Users} color="blue" shadowColor="blue" trend={{ value: 12.5, isPositive: true }} showTrend={true} className="h-full" />
           
           <SummaryCard
-            title="New Leads" value={summaryData.newLeads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} />
+            title="New Leads" value={summaryData.newLeads} icon={User} color="green" shadowColor="green" trend={{ value: 8.2, isPositive: true }} showTrend={true} className="h-full" />
           
           <SummaryCard
             title="Contacted Leads" value={summaryData.contactedLeads} icon={BookText} color="orange" shadowColor="orange" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} />
+            showTrend={true} className="h-full" />
 
           <SummaryCard
             title="Followup" value={summaryData.followup} icon={CalendarCheck} color="yellow" shadowColor="yellow" trend={{ value: 22.1, isPositive: true }} 
-            showTrend={true} />
+            showTrend={true} className="h-full" />
           
           <SummaryCard
-            title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} />
-        </SummaryCardsGrid>
+            title="Qualified Leads" value={summaryData.qualifiedLeads} icon={CheckSquare} color="purple" shadowColor="purple" trend={{ value: 15.3, isPositive: true }} showTrend={true} className="h-full" />
+        </div>
         
         {/* Bulk Actions Bar */}
         <BulkActionsBar />
         
-        {/* Filters and Search */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
+        {/* Mobile Filters */}
+        <MobileFiltersPanel />
+        
+        {/* Desktop Filters */}
+        <div className="hidden lg:block bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
               <div className="relative flex-1">
@@ -795,9 +1082,27 @@ const CRMDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Leads Table */}
+        {/* Leads Table/List */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile View */}
+          <div className="lg:hidden">
+            {isInitialLoading ? (
+              <LoadingState />
+            ) : leads.length === 0 ? (
+              <EmptyState />
+            ) : filteredLeads.length === 0 ? (
+              <NoResultsState />
+            ) : (
+              <div className="p-4">
+                {currentLeads.map((lead) => (
+                  <MobileLeadRow key={lead.id} lead={lead} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
@@ -879,22 +1184,19 @@ const CRMDashboard: React.FC = () => {
                 {isInitialLoading ? (
                   <tr>
                     <td colSpan={10} className="text-center py-12">
-                      <RefreshCw className="mx-auto h-8 w-8 animate-spin text-blue-500 mb-4" />
-                      <p className="text-gray-600">Loading leads from API...</p>
+                      <LoadingState />
                     </td>
                   </tr>
                 ) : leads.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-12">
-                      <div className="text-gray-400 mb-2">No leads available</div>
-                      <p className="text-gray-600">Start by adding your first lead</p>
+                      <EmptyState />
                     </td>
                   </tr>
                 ) : filteredLeads.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="text-center py-12">
-                      <div className="text-gray-400 mb-2">No matching records found</div>
-                      <p className="text-gray-600">Try adjusting your search or filters</p>
+                      <NoResultsState />
                     </td>
                   </tr>
                 ) : (
@@ -1070,7 +1372,7 @@ const CRMDashboard: React.FC = () => {
           </div>
 
           {/* Pagination */}
-          {!isInitialLoading && leads.length > 0 && <Pagination />}
+          {!isInitialLoading && leads.length > 0 && filteredLeads.length > 0 && <Pagination />}
         </div>
       </div>
     </div>
