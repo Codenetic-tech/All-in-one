@@ -1,3 +1,5 @@
+import { useAuth } from '@/contexts/AuthContext';
+
 // services/crm.ts
 export interface APILead {
   name: string;
@@ -180,7 +182,8 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
   };
 };
 
-export const fetchLeads = async (employeeId: string, email: string): Promise<Lead[]> => {
+// Change the fetchLeads function to accept team parameter
+export const fetchLeads = async (employeeId: string, email: string, team: string): Promise<Lead[]> => {
   // Check cache first
   const cachedLeads = getCachedLeads(employeeId, email);
   if (cachedLeads) {
@@ -198,7 +201,8 @@ export const fetchLeads = async (employeeId: string, email: string): Promise<Lea
       body: JSON.stringify({
         source: 'Lead',
         employeeId: employeeId,
-        email: email
+        email: email,
+        team: team // Use the team parameter here instead of user.team
       })
     });
 
@@ -221,8 +225,8 @@ export const fetchLeads = async (employeeId: string, email: string): Promise<Lea
   }
 };
 
-// Get lead by ID - updated to use cache
-export const getLeadById = async (leadId: string, employeeId: string, email: string): Promise<Lead | null> => {
+// Update getLeadById to accept team parameter
+export const getLeadById = async (leadId: string, employeeId: string, email: string, team: string): Promise<Lead | null> => {
   try {
     // Check cache first
     const cachedLead = getCachedLeadDetails(leadId);
@@ -232,7 +236,7 @@ export const getLeadById = async (leadId: string, employeeId: string, email: str
     }
 
     // If not in cache, fetch from API
-    const leads = await fetchLeads(employeeId, email);
+    const leads = await fetchLeads(employeeId, email, team);
     const lead = leads.find(lead => lead.id === leadId) || null;
     
     // Save to cache if found
@@ -247,11 +251,11 @@ export const getLeadById = async (leadId: string, employeeId: string, email: str
   }
 };
 
-// Force refresh leads (ignore cache)
-export const refreshLeads = async (employeeId: string, email: string): Promise<Lead[]> => {
+// Update refreshLeads to accept team parameter
+export const refreshLeads = async (employeeId: string, email: string, team: string): Promise<Lead[]> => {
   // Clear cache
   clearAllCache();
-  return fetchLeads(employeeId, email);
+  return fetchLeads(employeeId, email, team);
 };
 
 // Update lead status

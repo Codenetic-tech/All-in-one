@@ -260,7 +260,7 @@ const CRMDashboard: React.FC = () => {
       setError(null);
       
       // Use the actual fetchLeads function that sends employeeId and email to webhook
-      const apiLeads = await fetchLeads(employeeId, email);
+      const apiLeads = await fetchLeads(employeeId, email, user.team);
       
       if (isAutoRefresh && lastFetchedData.current.length > 0) {
         // Incremental update for auto-refresh
@@ -530,7 +530,7 @@ const CRMDashboard: React.FC = () => {
     
     // Clear cache and force refresh from API
     clearAllCache();
-    await refreshLeads(employeeId, email);
+    await refreshLeads(employeeId, email, user.team);
     await fetchAllLeads(false);
   };
 
