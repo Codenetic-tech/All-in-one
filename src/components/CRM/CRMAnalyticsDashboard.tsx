@@ -17,6 +17,8 @@ const CRMAnalyticsDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'syncing'>('connected');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
+  const [selectedAssignedUser, setSelectedAssignedUser] = useState<string>('all');
 
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
@@ -34,7 +36,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
       
       setError(null);
       
-      const apiLeads = await fetchLeads(employeeId, email);
+      const apiLeads = await fetchLeads(employeeId, email, user.team);
       
       // Ensure we have an array, even if empty
       const safeLeads = Array.isArray(apiLeads) ? apiLeads : [];
@@ -99,10 +101,74 @@ const CRMAnalyticsDashboard: React.FC = () => {
     };
   }, [autoRefresh, refreshInterval, isInitialLoading, employeeId, email]);
 
+  // Get unique campaigns from leads
+  const campaigns = React.useMemo(() => {
+    const safeLeads = Array.isArray(leads) ? leads : [];
+    const campaignSet = new Set(safeLeads.map(lead => lead.campaign || 'Uncategorized'));
+    const campaignList = Array.from(campaignSet).sort();
+    return ['all', ...campaignList];
+  }, [leads]);
+
+  // Get unique assigned users from leads
+  const assignedUsers = React.useMemo(() => {
+    const safeLeads = Array.isArray(leads) ? leads : [];
+    const userSet = new Set<string>();
+    
+    safeLeads.forEach(lead => {
+      if (lead._assign) {
+        try {
+          const assignArray = JSON.parse(lead._assign);
+          if (Array.isArray(assignArray)) {
+            assignArray.forEach(user => {
+              if (user && typeof user === 'string') {
+                // Filter out the specific email if needed, or show all
+                if (user !== "gokul.krishna.687@gopocket.in") {
+                  userSet.add(user);
+                }
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing _assign:', error);
+        }
+      }
+    });
+    
+    const userList = Array.from(userSet).sort();
+    return ['all', ...userList];
+  }, [leads]);
+
+  // Filter leads by selected campaign and assigned user
+  const filteredLeads = React.useMemo(() => {
+    let filtered = leads;
+
+    // Filter by campaign
+    if (selectedCampaign !== 'all') {
+      filtered = filtered.filter(lead => lead.campaign === selectedCampaign);
+    }
+
+    // Filter by assigned user
+    if (selectedAssignedUser !== 'all') {
+      filtered = filtered.filter(lead => {
+        if (!lead._assign) return false;
+        
+        try {
+          const assignArray = JSON.parse(lead._assign);
+          return Array.isArray(assignArray) && assignArray.includes(selectedAssignedUser);
+        } catch (error) {
+          console.error('Error parsing _assign for filtering:', error);
+          return false;
+        }
+      });
+    }
+
+    return filtered;
+  }, [leads, selectedCampaign, selectedAssignedUser]);
+
   // Calculate status distribution with safe defaults - UPDATED: Removed negotiation and lost
   const statusDistribution = React.useMemo(() => {
     // Ensure leads is always an array
-    const safeLeads = Array.isArray(leads) ? leads : [];
+    const safeLeads = Array.isArray(filteredLeads) ? filteredLeads : [];
     
     const statusCounts = {
       new: 0,
@@ -129,11 +195,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
       value: count,
       count
     }));
-  }, [leads]);
+  }, [filteredLeads]);
 
   // Calculate source distribution with safe defaults
   const sourceDistribution = React.useMemo(() => {
-    const safeLeads = Array.isArray(leads) ? leads : [];
+    const safeLeads = Array.isArray(filteredLeads) ? filteredLeads : [];
     const sourceCounts: Record<string, number> = {};
     
     safeLeads.forEach(lead => {
@@ -148,11 +214,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
       value: count,
       count
     }));
-  }, [leads]);
+  }, [filteredLeads]);
 
   // Calculate summary data with safe defaults - UPDATED: Removed negotiation and lost
   const summaryData = React.useMemo(() => {
-    const safeLeads = Array.isArray(leads) ? leads : [];
+    const safeLeads = Array.isArray(filteredLeads) ? filteredLeads : [];
     
     const totalLeads = safeLeads.length;
     const newLeads = safeLeads.filter(lead => lead?.status === 'new').length;
@@ -183,7 +249,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
       rnr,
       conversionRate
     };
-  }, [leads]);
+  }, [filteredLeads]);
 
   // Performance chart data (leads by status)
   const performanceChartData = statusDistribution.map(item => ({
@@ -235,7 +301,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
     if (!employeeId || !email) return;
     
     clearAllCache();
-    await refreshLeads(employeeId, email);
+    await refreshLeads(employeeId, email, user.team);
     await fetchAllLeads(false);
   };
 
@@ -252,8 +318,17 @@ const CRMAnalyticsDashboard: React.FC = () => {
     }
   };
 
+  // Helper function to get display name from email
+  const getDisplayName = (email: string) => {
+    if (email === 'all') return 'All Users';
+    const namePart = email.split('@')[0];
+    return namePart.split('.').map(part => 
+      part.charAt(0).toUpperCase() + part.slice(1)
+    ).join(' ');
+  };
+
   return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-8 gap-4">
         <div className="flex-1">
@@ -275,6 +350,44 @@ const CRMAnalyticsDashboard: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* Campaign Filter */}
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
+            <label htmlFor="campaign" className="text-sm font-medium text-slate-700 whitespace-nowrap">
+              Campaign:
+            </label>
+            <select
+              id="campaign"
+              value={selectedCampaign}
+              onChange={(e) => setSelectedCampaign(e.target.value)}
+              className="text-sm border-none bg-transparent focus:ring-0 focus:outline-none"
+            >
+              {campaigns.map(campaign => (
+                <option key={campaign} value={campaign}>
+                  {campaign === 'all' ? 'All Campaigns' : campaign}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Assigned User Filter */}
+          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
+            <label htmlFor="assignedUser" className="text-sm font-medium text-slate-700 whitespace-nowrap">
+              Assigned To:
+            </label>
+            <select
+              id="assignedUser"
+              value={selectedAssignedUser}
+              onChange={(e) => setSelectedAssignedUser(e.target.value)}
+              className="text-sm border-none bg-transparent focus:ring-0 focus:outline-none"
+            >
+              {assignedUsers.map(user => (
+                <option key={user} value={user}>
+                  {getDisplayName(user)}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
             <input
               type="checkbox"
@@ -320,6 +433,40 @@ const CRMAnalyticsDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Active Filters Display */}
+      {/*{(selectedCampaign !== 'all' || selectedAssignedUser !== 'all') && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Filter size={16} className="text-blue-600" />
+            <span className="text-sm font-medium text-blue-800">Active Filters:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedCampaign !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                Campaign: {selectedCampaign}
+                <button 
+                  onClick={() => setSelectedCampaign('all')}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {selectedAssignedUser !== 'all' && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                Assigned To: {getDisplayName(selectedAssignedUser)}
+                <button 
+                  onClick={() => setSelectedAssignedUser('all')}
+                  className="text-blue-600 hover:text-blue-800"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}*/}
+
       {/* Charts Row - Only show when data is loaded and has leads */}
       {!isInitialLoading && Array.isArray(leads) && leads.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
@@ -327,7 +474,14 @@ const CRMAnalyticsDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">Lead Status Distribution</h3>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">
+                  Lead Status Distribution
+                  {(selectedCampaign !== 'all' || selectedAssignedUser !== 'all') && (
+                    <span className="text-sm font-normal text-blue-600 ml-2">
+                      ({selectedCampaign !== 'all' ? selectedCampaign : 'All Campaigns'}{selectedAssignedUser !== 'all' ? ` • ${getDisplayName(selectedAssignedUser)}` : ''})
+                    </span>
+                  )}
+                </h3>
                 <p className="text-sm text-gray-500">Breakdown of leads by current status</p>
               </div>
               <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
@@ -453,6 +607,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
                     Lead Performance
+                    {(selectedCampaign !== 'all' || selectedAssignedUser !== 'all') && (
+                      <span className="text-sm font-normal text-blue-600">
+                        ({selectedCampaign !== 'all' ? selectedCampaign : 'All Campaigns'}{selectedAssignedUser !== 'all' ? ` • ${getDisplayName(selectedAssignedUser)}` : ''})
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-gray-500">Leads distribution across status categories</p>
                 </div>
@@ -555,7 +714,14 @@ const CRMAnalyticsDashboard: React.FC = () => {
             <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-6 border border-gray-100 hover:shadow-2xl transition-all duration-300 flex-1">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Lead Source Distribution</h3>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    Lead Source Distribution
+                    {(selectedCampaign !== 'all' || selectedAssignedUser !== 'all') && (
+                      <span className="text-sm font-normal text-blue-600 ml-2">
+                        ({selectedCampaign !== 'all' ? selectedCampaign : 'All Campaigns'}{selectedAssignedUser !== 'all' ? ` • ${getDisplayName(selectedAssignedUser)}` : ''})
+                      </span>
+                    )}
+                  </h3>
                   <p className="text-sm text-gray-500">Breakdown of leads by acquisition source</p>
                 </div>
                 <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
@@ -698,6 +864,38 @@ const CRMAnalyticsDashboard: React.FC = () => {
           <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">No Leads Data</h3>
           <p className="text-gray-600">Start adding leads to see analytics and insights</p>
+        </div>
+      )}
+
+      {/* Campaign/User-specific empty state */}
+      {!isInitialLoading && Array.isArray(leads) && leads.length > 0 && filteredLeads.length === 0 && (
+        <div className="bg-white rounded-2xl shadow-xl shadow-blue-100 p-12 border border-gray-100 text-center">
+          <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No Leads Match Filters</h3>
+          <p className="text-gray-600 mb-4">
+            No leads found for:
+            {selectedCampaign !== 'all' && <strong> Campaign: {selectedCampaign}</strong>}
+            {selectedCampaign !== 'all' && selectedAssignedUser !== 'all' && ' and '}
+            {selectedAssignedUser !== 'all' && <strong> Assigned To: {getDisplayName(selectedAssignedUser)}</strong>}
+          </p>
+          <div className="flex gap-2 justify-center">
+            {selectedCampaign !== 'all' && (
+              <button 
+                onClick={() => setSelectedCampaign('all')}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                View All Campaigns
+              </button>
+            )}
+            {selectedAssignedUser !== 'all' && (
+              <button 
+                onClick={() => setSelectedAssignedUser('all')}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                View All Users
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
