@@ -13,7 +13,6 @@ import {
   Search,
   AlertCircle
 } from 'lucide-react';
-import { TaskCard } from '@/components/TaskPage/TaskCard';
 import { KanbanColumn } from '@/components/TaskPage/KanbanColumn';
 import { TaskModal } from '@/components/TaskPage/TaskModal';
 import { getCachedAllTasks, saveAllTasksToCache, type Task } from '@/utils/tasksCache';
@@ -136,7 +135,39 @@ const TasksKanbanPage: React.FC = () => {
         throw new Error(`Failed to fetch tasks: ${response.status}`);
       }
 
-      const tasksData: Task[] = await response.json();
+      // Handle case where response is 200 but no content
+      const responseText = await response.text();
+      
+      // If response is empty, treat as no tasks
+      if (!responseText || responseText.trim() === '') {
+        console.log('No tasks found - empty response');
+        setTasks([]);
+        setColumns(initializeColumns([]));
+        setLoading(false);
+        return;
+      }
+
+      // Try to parse as JSON
+      let tasksData: Task[];
+      try {
+        tasksData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing response as JSON:', parseError);
+        // If it's not valid JSON but has content, check if it's an empty array string
+        if (responseText.trim() === '[]') {
+          tasksData = [];
+        } else {
+          throw new Error('Invalid response format from server');
+        }
+      }
+
+      // Check if we have no tasks (empty array or null/undefined)
+      if (!tasksData || (Array.isArray(tasksData) && tasksData.length === 0)) {
+        setTasks([]);
+        setColumns(initializeColumns([]));
+        setLoading(false);
+        return;
+      }
       
       // Sort tasks by due date
       tasksData.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
@@ -278,7 +309,7 @@ const TasksKanbanPage: React.FC = () => {
 
   const filteredColumns = getFilteredColumns();
 
-  // Show error state
+  // Show error state only for actual errors
   if (error && tasks.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -298,7 +329,7 @@ const TasksKanbanPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       <div className="w-full p-6">
         {/* Header */}
         <div className="mb-8">
@@ -308,6 +339,11 @@ const TasksKanbanPage: React.FC = () => {
               <p className="text-gray-600">Manage your tasks in a beautiful Kanban view</p>
             </div>
             <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                {!loading && tasks.length === 0 && (
+                  <span>You don't have any tasks right now</span>
+                )}
+              </div>
               <button
                 onClick={refreshTasks}
                 disabled={loading || refreshing || !employeeId}
@@ -366,24 +402,27 @@ const TasksKanbanPage: React.FC = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {filteredColumns.map(column => (
-              <div key={column.id} className="bg-white rounded-lg p-4 shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-600">{column.title}</span>
-                  <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded-full">
-                    {loading ? '...' : column.tasks.length}
-                  </span>
+          {tasks.length > 0 && (
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              {filteredColumns.map(column => (
+                <div key={column.id} className="bg-white rounded-lg p-4 shadow-sm border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-600">{column.title}</span>
+                    <span className="bg-blue-100 text-blue-800 text-sm font-medium px-2 py-1 rounded-full">
+                      {loading ? '...' : column.tasks.length}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Kanban Board */}
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-gray-600">Loading tasks...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="text-gray-600 mt-4">Loading tasks...</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -400,27 +439,17 @@ const TasksKanbanPage: React.FC = () => {
           </div>
         )}
 
-        {/* Empty State */}
-        {!loading && filteredColumns.every(column => column.tasks.length === 0) && (
+        {/* Empty State for filtered results */}
+        {!loading && tasks.length > 0 && filteredColumns.every(column => column.tasks.length === 0) && (
           <div className="text-center py-16">
             <CheckSquare className="mx-auto h-16 w-16 text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks found</h3>
             <p className="text-gray-500 mb-6">
               {searchTerm || filterPriority !== 'all' 
                 ? 'Try adjusting your search or filter criteria'
-                : 'Get started by creating your first task'
+                : 'No tasks match your criteria'
               }
             </p>
-            {!(searchTerm || filterPriority !== 'all') && (
-              <button
-                onClick={() => setIsTaskModalOpen(true)}
-                disabled={!employeeId}
-                className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                <Plus size={18} />
-                Create Your First Task
-              </button>
-            )}
           </div>
         )}
       </div>

@@ -718,10 +718,6 @@ useEffect(() => {
               <option value={900}>15 min</option>
             </select>*/}
             <RefreshButton />
-            <button className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium flex items-center gap-2 hover:bg-blue-700 transition-colors">
-              <Plus size={20} />
-              Add New Lead
-            </button>
           </div>
         </div>
 
