@@ -1,10 +1,25 @@
 // pages/CRMAnalyticsDashboard.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Users, User, BookText, CalendarCheck, CheckSquare, TrendingUp, BarChart3, Activity, RefreshCw, Wifi, WifiOff, Download, Filter } from 'lucide-react';
+import { Users, User, BookText, CalendarCheck, CheckSquare, TrendingUp, BarChart3, Activity, RefreshCw, Wifi, WifiOff, Download, Filter, ChevronsUpDown, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchLeads, refreshLeads, type Lead, clearAllCache } from '@/utils/crm';
 import { Calendar } from '@/components/ui/calendar';
+import { Button } from '@/components/ui/button';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 const CRMAnalyticsDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -19,6 +34,10 @@ const CRMAnalyticsDashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
   const [selectedAssignedUser, setSelectedAssignedUser] = useState<string>('all');
+
+  // Combobox states
+  const [campaignOpen, setCampaignOpen] = useState(false);
+  const [assignedUserOpen, setAssignedUserOpen] = useState(false);
 
   const employeeId = user?.employeeId || '';
   const email = user?.email || '';
@@ -327,6 +346,18 @@ const CRMAnalyticsDashboard: React.FC = () => {
     ).join(' ');
   };
 
+  // Get display value for campaign combobox
+  const getCampaignDisplayValue = () => {
+    if (selectedCampaign === 'all') return 'All Campaigns';
+    return selectedCampaign;
+  };
+
+  // Get display value for assigned user combobox
+  const getAssignedUserDisplayValue = () => {
+    if (selectedAssignedUser === 'all') return 'All Users';
+    return getDisplayName(selectedAssignedUser);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       {/* Header */}
@@ -350,42 +381,94 @@ const CRMAnalyticsDashboard: React.FC = () => {
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Campaign Filter */}
-          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
-            <label htmlFor="campaign" className="text-sm font-medium text-slate-700 whitespace-nowrap">
-              Campaign:
-            </label>
-            <select
-              id="campaign"
-              value={selectedCampaign}
-              onChange={(e) => setSelectedCampaign(e.target.value)}
-              className="text-sm border-none bg-transparent focus:ring-0 focus:outline-none"
-            >
-              {campaigns.map(campaign => (
-                <option key={campaign} value={campaign}>
-                  {campaign === 'all' ? 'All Campaigns' : campaign}
-                </option>
-              ))}
-            </select>
+          {/* Campaign Filter - Searchable Combobox */}
+          <div className="flex items-center gap-2">
+            <Popover open={campaignOpen} onOpenChange={setCampaignOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={campaignOpen}
+                  className="w-[280px] justify-between bg-white border-slate-300 rounded-xl shadow-sm hover:bg-slate-50"
+                >
+                  {getCampaignDisplayValue()}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0 max-h-60 overflow-hidden">
+                <Command className="max-h-60">
+                  <CommandInput placeholder="Search campaigns..." className="h-9" />
+                  <CommandList className="max-h-48 overflow-y-auto">
+                    <CommandEmpty>No campaign found.</CommandEmpty>
+                    <CommandGroup>
+                      {campaigns.map((campaign) => (
+                        <CommandItem
+                          key={campaign}
+                          value={campaign}
+                          onSelect={(currentValue) => {
+                            setSelectedCampaign(currentValue === selectedCampaign ? "all" : currentValue);
+                            setCampaignOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedCampaign === campaign ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {campaign === 'all' ? 'All Campaigns' : campaign}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* Assigned User Filter */}
-          <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
-            <label htmlFor="assignedUser" className="text-sm font-medium text-slate-700 whitespace-nowrap">
-              Assigned To:
-            </label>
-            <select
-              id="assignedUser"
-              value={selectedAssignedUser}
-              onChange={(e) => setSelectedAssignedUser(e.target.value)}
-              className="text-sm border-none bg-transparent focus:ring-0 focus:outline-none"
-            >
-              {assignedUsers.map(user => (
-                <option key={user} value={user}>
-                  {getDisplayName(user)}
-                </option>
-              ))}
-            </select>
+          {/* Assigned User Filter - Searchable Combobox */}
+          <div className="flex items-center gap-2">
+            <Popover open={assignedUserOpen} onOpenChange={setAssignedUserOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={assignedUserOpen}
+                  className="w-[280px] justify-between bg-white border-slate-300 rounded-xl shadow-sm hover:bg-slate-50"
+                >
+                  {getAssignedUserDisplayValue()}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[280px] p-0 max-h-90 overflow-hidden">
+                <Command className="max-h-90">
+                  <CommandInput placeholder="Search users..." className="h-9" />
+                  <CommandList className="max-h-60 overflow-y-auto">
+                    <CommandEmpty>No user found.</CommandEmpty>
+                    <CommandGroup>
+                      {assignedUsers.map((user) => (
+                        <CommandItem
+                          key={user}
+                          value={user}
+                          onSelect={(currentValue) => {
+                            setSelectedAssignedUser(currentValue === selectedAssignedUser ? "all" : currentValue);
+                            setAssignedUserOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedAssignedUser === user ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {getDisplayName(user)}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
@@ -433,40 +516,7 @@ const CRMAnalyticsDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Active Filters Display */}
-      {/*{(selectedCampaign !== 'all' || selectedAssignedUser !== 'all') && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Filter size={16} className="text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">Active Filters:</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {selectedCampaign !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                Campaign: {selectedCampaign}
-                <button 
-                  onClick={() => setSelectedCampaign('all')}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {selectedAssignedUser !== 'all' && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                Assigned To: {getDisplayName(selectedAssignedUser)}
-                <button 
-                  onClick={() => setSelectedAssignedUser('all')}
-                  className="text-blue-600 hover:text-blue-800"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-          </div>
-        </div>
-      )}*/}
-
+      {/* Rest of the component remains exactly the same */}
       {/* Charts Row - Only show when data is loaded and has leads */}
       {!isInitialLoading && Array.isArray(leads) && leads.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
