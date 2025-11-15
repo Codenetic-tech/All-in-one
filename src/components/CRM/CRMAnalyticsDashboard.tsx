@@ -395,10 +395,10 @@ const CRMAnalyticsDashboard: React.FC = () => {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[280px] p-0 max-h-60 overflow-hidden">
-                <Command className="max-h-60">
+              <PopoverContent className="w-[280px] p-0 max-h-90 overflow-hidden">
+                <Command className="max-h-90">
                   <CommandInput placeholder="Search campaigns..." className="h-9" />
-                  <CommandList className="max-h-48 overflow-y-auto">
+                  <CommandList className="max-h-60 overflow-y-auto">
                     <CommandEmpty>No campaign found.</CommandEmpty>
                     <CommandGroup>
                       {campaigns.map((campaign) => (
@@ -534,11 +534,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
                 </h3>
                 <p className="text-sm text-gray-500">Breakdown of leads by current status</p>
               </div>
-              <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+             {/* <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
                 <span className="text-sm font-semibold text-blue-700">
                   {statusDistribution.length} Statuses
                 </span>
-              </div>
+              </div> */}
             </div>
 
             <div className="relative">
@@ -666,12 +666,12 @@ const CRMAnalyticsDashboard: React.FC = () => {
                   <p className="text-sm text-gray-500">Leads distribution across status categories</p>
                 </div>
                 <div className="flex gap-2">
-                  <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                  {/*<div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
                     <span className="text-xs font-semibold text-blue-700 flex items-center gap-1">
                       <BarChart3 size={14} />
                       Metrics
                     </span>
-                  </div>
+                  </div>*/}
                 </div>
               </div>
 
@@ -774,11 +774,11 @@ const CRMAnalyticsDashboard: React.FC = () => {
                   </h3>
                   <p className="text-sm text-gray-500">Breakdown of leads by acquisition source</p>
                 </div>
-                <div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                {/*<div className="bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
                   <span className="text-sm font-semibold text-blue-700">
                     {sourceDistribution.length} Sources
-                  </span>
-                </div>
+                  </span> 
+                </div>*/}
               </div>
 
               <ResponsiveContainer width="100%" height={200}>
