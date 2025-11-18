@@ -399,6 +399,29 @@ const CRMDashboard: React.FC = () => {
       ),
     },
     {
+      accessorKey: "other_brokers",
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            className="hidden lg:flex"
+          >
+            other_brokers
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        )
+      },
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <Building2 size={16} className="text-gray-400" />
+            <span className="text-sm sm:text-base">{row.getValue("other_brokers") || 'N/A'}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
       accessorKey: "status",
       header: ({ column }) => {
         return (

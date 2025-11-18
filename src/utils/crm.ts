@@ -48,6 +48,7 @@ export interface APILead {
   campaign?: string;
   _assign: string;
   language: string;
+  other_brokers: string;
 }
 
 export interface Lead {
@@ -87,6 +88,7 @@ export interface Lead {
   campaign?: string;
   _assign: string;
   language: string;
+  other_brokers: string;
 }
 
 // Import cache functions
@@ -177,7 +179,8 @@ export const mapApiLeadToLead = (apiLead: APILead): Lead => {
     firstRespondedOn: apiLead.first_responded_on,
     campaign: apiLead.campaign,
     _assign: apiLead._assign,
-    language: apiLead.language
+    language: apiLead.language,
+    other_brokers: apiLead.other_brokers
 
   };
 };
