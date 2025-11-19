@@ -187,8 +187,36 @@ const CRMDashboard: React.FC = () => {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'createdAt', desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+// 1. Fix the initial state to load from localStorage
+const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(() => {
+  if (typeof window !== 'undefined') {
+    try {
+      const savedVisibility = localStorage.getItem('crm-column-visibility');
+      if (savedVisibility) {
+        return JSON.parse(savedVisibility);
+      }
+    } catch (error) {
+      console.error('Error loading column visibility from localStorage:', error);
+    }
+  }
+  return {
+    other_brokers: false // Default if nothing in localStorage
+  };
+});
+
+// 2. Keep the useEffect to persist changes
+useEffect(() => {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('crm-column-visibility', JSON.stringify(columnVisibility));
+    } catch (error) {
+      console.error('Error saving column visibility to localStorage:', error);
+    }
+  }
+}, [columnVisibility]);
+
   const [rowSelection, setRowSelection] = useState({});
+  
 
   // Get actual user credentials from auth context
   const employeeId = user?.employeeId || '';
@@ -877,7 +905,7 @@ const CRMDashboard: React.FC = () => {
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-full sm:w-[200px] p-0">
+        <PopoverContent className="w-full sm:w-[260px] p-0">
           <Command>
             <CommandInput placeholder="Search campaign..." />
             <CommandList>
